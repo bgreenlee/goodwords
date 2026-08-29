@@ -1,0 +1,204 @@
+import { useEffect, useRef, useState } from "react";
+import { Board } from "./components/Board";
+import { GuessPanel } from "./components/GuessPanel";
+import { VocabPanel } from "./components/VocabPanel";
+import { rollBoard, type Board as BoardCells } from "./game/dice";
+import { loadDictionary, loadVocab, type GameData, type Vocab } from "./game/data";
+import { formatClock } from "./game/schedule";
+import { scoreWord } from "./game/scoring";
+import { findPath, solveBoard } from "./game/solver";
+import { teachableFrom } from "./game/vocab";
+import { loadHistory, saveHistory, type History } from "./history";
+import { useRound } from "./useRound";
+
+type Round = { round: number; board: BoardCells; solution: Set<string> };
+type Results = { round: number; missed: string[]; found: string[]; score: number; total: number };
+
+export default function App() {
+  const [data, setData] = useState<GameData | null>(null);
+  const [vocab, setVocab] = useState<Vocab | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadDictionary().then(setData, () => setError("Could not load the dictionary."));
+    loadVocab().then(setVocab, () => setError("Could not load definitions."));
+  }, []);
+
+  if (error) return <div className="splash">{error}</div>;
+  if (!data) return <div className="splash">Loading Good Words…</div>;
+  return <Game data={data} vocab={vocab} />;
+}
+
+function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
+  const { round, phase, remainingMs } = useRound();
+  const [guesses, setGuesses] = useState<string[]>([]);
+  const [entry, setEntry] = useState("");
+  const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
+  const [path, setPath] = useState<number[]>([]);
+  const [traced, setTraced] = useState<number[] | null>(null);
+  const [results, setResults] = useState<Results | null>(null);
+  const [history, setHistory] = useState<History>(loadHistory);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // The board is a pure function of the round, so cache it rather than re-rolling
+  // on every clock tick.
+  const cache = useRef<Round | null>(null);
+  if (!cache.current || cache.current.round !== round) {
+    const board = rollBoard(round);
+    cache.current = { round, board, solution: solveBoard(board, data.trie) };
+  }
+  const { board, solution } = cache.current;
+
+  // Clear the previous round's play when the clock rolls over.
+  const [seenRound, setSeenRound] = useState(round);
+  if (seenRound !== round) {
+    setSeenRound(round);
+    setGuesses([]);
+    setEntry("");
+    setFeedback(null);
+    setPath([]);
+    setTraced(null);
+  }
+
+  // The break is the reveal: score the round that just finished.
+  const [seenPhase, setSeenPhase] = useState(phase);
+  if (seenPhase !== phase) {
+    setSeenPhase(phase);
+    if (phase === "break") {
+      const found = new Set(guesses);
+      setResults({
+        round,
+        missed: [...solution].filter((w) => !found.has(w)),
+        found: guesses,
+        score: guesses.reduce((n, w) => n + scoreWord(w), 0),
+        total: [...solution].reduce((n, w) => n + scoreWord(w), 0),
+      });
+    }
+  }
+
+  const taught = results && vocab ? teachableFrom(results.missed, vocab, data) : null;
+  const sameBoard = results?.round === round;
+
+  function trace(word: string | null) {
+    setTraced(word ? findPath(board, word) : null);
+  }
+
+  // Record what the player has been shown, so "words seen" survives a refresh.
+  useEffect(() => {
+    if (!taught || !results) return;
+    setHistory((prev) => {
+      const learned = new Set(prev.learned);
+      for (const t of taught) learned.add(t.lemma);
+      const next: History = {
+        ...prev,
+        learned: [...learned],
+        roundsPlayed: prev.roundsPlayed + 1,
+        bestScore: Math.max(prev.bestScore, results.score),
+      };
+      saveHistory(next);
+      return next;
+    });
+    // Only fold in a given round once, however often this re-renders.
+  }, [results?.round]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const score = guesses.reduce((n, w) => n + scoreWord(w), 0);
+  const playing = phase === "playing";
+
+  function submit(raw: string) {
+    const word = raw.trim().toLowerCase();
+    setEntry("");
+    if (!word) return;
+    if (word.length < 4) return setFeedback({ text: "Four letters minimum", ok: false });
+    if (guesses.includes(word)) return setFeedback({ text: `Already found ${word}`, ok: false });
+    if (!data.trie.has(word))
+      return setFeedback({ text: `${word} isn’t in the dictionary`, ok: false });
+    const cells = findPath(board, word);
+    if (!cells) return setFeedback({ text: `${word} isn’t on this board`, ok: false });
+
+    setGuesses((prev) => [word, ...prev]);
+    setPath(cells);
+    setFeedback({ text: `${word} +${scoreWord(word)}`, ok: true });
+  }
+
+  return (
+    <div className="app">
+      <header className="topbar">
+        <h1>
+          Good Words <span className="topbar__tag">5×5 · 4 letters and up</span>
+        </h1>
+        <div className="topbar__right">
+          <input
+            className="topbar__name"
+            value={history.name}
+            placeholder="your name"
+            maxLength={16}
+            onChange={(e) => {
+              const next = { ...history, name: e.target.value };
+              setHistory(next);
+              saveHistory(next);
+            }}
+          />
+          <span className="topbar__stat">{history.learned.length} words seen</span>
+        </div>
+      </header>
+
+      <main className="columns">
+        <section className="panel panel--game">
+          <div className={`clock${playing ? "" : " clock--break"}`}>
+            <span className="clock__time">{formatClock(remainingMs)}</span>
+            <span className="clock__label">
+              {playing ? "left in this round" : "until the next board"}
+            </span>
+          </div>
+
+          <Board cells={board} path={traced ?? (playing ? path : [])} />
+
+          <form
+            className="entry"
+            onSubmit={(e) => {
+              e.preventDefault();
+              submit(entry);
+            }}
+          >
+            <input
+              ref={inputRef}
+              className="entry__input"
+              value={entry}
+              disabled={!playing}
+              autoFocus
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              placeholder={playing ? "type a word, press enter" : "next board starting…"}
+              onChange={(e) => setEntry(e.target.value.replace(/[^a-zA-Z]/g, ""))}
+            />
+          </form>
+
+          {feedback && playing ? (
+            <p className={`feedback${feedback.ok ? " feedback--ok" : ""}`}>{feedback.text}</p>
+          ) : !playing && results ? (
+            <p className="feedback feedback--ok">
+              {results.score} of {results.total} points · {results.found.length} of{" "}
+              {results.found.length + results.missed.length} words
+            </p>
+          ) : (
+            <p className="feedback">&nbsp;</p>
+          )}
+        </section>
+
+        <GuessPanel guesses={guesses} score={score} onHover={trace} />
+        <VocabPanel
+          words={taught}
+          loading={results !== null && vocab === null}
+          learnedCount={history.learned.length}
+          onHover={sameBoard ? trace : null}
+        />
+      </main>
+
+      <footer className="credits">
+        Definitions from <a href="https://wordnet.princeton.edu/">WordNet 3.1</a>, Princeton
+        University. Word list: ENABLE, public domain.
+      </footer>
+    </div>
+  );
+}

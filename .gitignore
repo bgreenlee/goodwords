@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.DS_Store
+# Source corpora, downloaded by tools/fetch-sources.sh and rebuilt into
+# public/data by `npm run data`. Too large to track.
+/data/
+__pycache__/
