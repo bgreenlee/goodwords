@@ -167,6 +167,13 @@ body {
   color: var(--ink-faint);
 }
 
+/* Tracing is a pointer affordance; on touch the hint would only mislead. */
+@media (hover: none) {
+  .panel__hint {
+    display: none;
+  }
+}
+
 .vocab__item--traceable {
   cursor: default;
   margin: 0 -8px;
