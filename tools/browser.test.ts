@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { chromium, type Browser } from "playwright";
+import { chromium, type Browser, type Page } from "playwright";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { rollBoard } from "../src/game/dice";
 import { solveBoard } from "../src/game/solver";
@@ -17,6 +17,17 @@ const START = ROUND * ROUND_MS + PLAY_MS - 6000;
 
 let server: ReturnType<typeof spawn>;
 let browser: Browser;
+
+/** Run the page on a clock we control, so a round boundary can be forced. */
+async function installClock(page: Page, at: number) {
+  await page.addInitScript(`(() => {
+    let target = ${at};
+    const real = Date.now;
+    let t0 = real();
+    Date.now = () => target + (real() - t0);
+    window.__setNow = (ms) => { target = ms; t0 = real(); };
+  })();`);
+}
 
 beforeAll(async () => {
   server = spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort"], {
@@ -41,12 +52,7 @@ afterAll(async () => {
 
 test("plays a round in a real browser", async () => {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-  await page.addInitScript(`(() => {
-    const target = ${START};
-    const real = Date.now;
-    const t0 = real();
-    Date.now = () => target + (real() - t0);
-  })();`);
+  await installClock(page, START);
 
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e)));
@@ -143,3 +149,44 @@ test("plays a round in a real browser", async () => {
 
   expect(errors, errors.join("\n")).toEqual([]);
 }, 60_000);
+
+test("a round the player never saw is not scored against them", async () => {
+  // A laptop that sleeps mid-round wakes with the clock far ahead. If it lands in
+  // some later round's break, the words typed on the old board must not be counted
+  // as finds on a board the player never saw.
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await installClock(page, ROUND * ROUND_MS + 60_000);
+
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+
+  await page.goto(URL);
+  await page.waitForSelector(".tile");
+
+  const words = readFileSync("public/data/words.txt", "utf8").split("\n");
+  const played = [...solveBoard(rollBoard(ROUND), new Trie(words))].slice(0, 2);
+  const input = page.locator(".entry__input");
+  for (const w of played) {
+    await input.fill(w);
+    await input.press("Enter");
+  }
+  await page.waitForFunction((n) => document.querySelectorAll(".guesses li").length === n, 2);
+
+  // Wake up three rounds later, during the break.
+  const wake = (ROUND + 3) * ROUND_MS + PLAY_MS + 10_000;
+  await page.evaluate(
+    (ms) => (window as never as { __setNow: (n: number) => void }).__setNow(ms),
+    wake,
+  );
+  await page.waitForSelector(".clock--break", { timeout: 5000 });
+  await page.waitForTimeout(700);
+
+  // The old guesses are gone, and nothing is reported as found on the new board.
+  expect(await page.locator(".guesses li").count()).toBe(0);
+  const summary = (await page.locator(".feedback").textContent())?.trim() ?? "";
+  expect(summary, `summary was "${summary}"`).not.toMatch(/[1-9]\d* of \d+ words/);
+  expect(await page.locator(".vocab__item").count()).toBe(0);
+
+  expect(errors, errors.join("\n")).toEqual([]);
+  await page.close();
+}, 45_000);

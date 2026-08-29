@@ -5,6 +5,7 @@ import { VocabPanel } from "./components/VocabPanel";
 import { rollBoard, type Board as BoardCells } from "./game/dice";
 import { loadDictionary, loadVocab, type GameData, type Vocab } from "./game/data";
 import { formatClock } from "./game/schedule";
+import { scoreRound, type RoundResults } from "./game/round";
 import { scoreWord } from "./game/scoring";
 import { findPath, solveBoard } from "./game/solver";
 import { teachableFrom } from "./game/vocab";
@@ -12,7 +13,6 @@ import { loadHistory, saveHistory, type History } from "./history";
 import { useRound } from "./useRound";
 
 type Round = { round: number; board: BoardCells; solution: Set<string> };
-type Results = { round: number; missed: string[]; found: string[]; score: number; total: number };
 
 export default function App() {
   const [data, setData] = useState<GameData | null>(null);
@@ -36,7 +36,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
   const [path, setPath] = useState<number[]>([]);
   const [traced, setTraced] = useState<number[] | null>(null);
-  const [results, setResults] = useState<Results | null>(null);
+  const [results, setResults] = useState<RoundResults | null>(null);
   const [history, setHistory] = useState<History>(loadHistory);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -60,19 +60,14 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     setTraced(null);
   }
 
-  // The break is the reveal: score the round that just finished.
+  // The break is the reveal: score the round that just finished. If the round
+  // changed in this same render the clock jumped — a sleeping laptop waking during
+  // some later break — and this board was never played, so there is nothing to score.
   const [seenPhase, setSeenPhase] = useState(phase);
   if (seenPhase !== phase) {
     setSeenPhase(phase);
-    if (phase === "break") {
-      const found = new Set(guesses);
-      setResults({
-        round,
-        missed: [...solution].filter((w) => !found.has(w)),
-        found: guesses,
-        score: guesses.reduce((n, w) => n + scoreWord(w), 0),
-        total: [...solution].reduce((n, w) => n + scoreWord(w), 0),
-      });
+    if (phase === "break" && seenRound === round) {
+      setResults(scoreRound(round, solution, guesses));
     }
   }
 

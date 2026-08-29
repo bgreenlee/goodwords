@@ -32,8 +32,16 @@ the board stops being predictable in advance.
     npm run data                  # compiles them into public/data/
     npm run dev
 
-`npm test` runs the engine tests and a Playwright test that plays a real round in
-a browser. `npm run typecheck` covers tests as well as app code.
+`npm test` runs the engine tests plus Playwright tests that play a real round in a
+browser and simulate a laptop waking mid-break. `npm run typecheck` covers tests as
+well as app code. `npm run analyze` prints solved boards with their candidate
+definitions, which is the fastest way to see the effect of changing the frequency
+band.
+
+The compiled data in `public/data` is committed, so the tests run against those
+files rather than against whatever `tools/build_data.py` currently produces. If you
+change the Python, rerun `npm run data` and commit the result, or the tests will
+happily keep passing on stale artifacts.
 
 ## Deploying
 
@@ -69,8 +77,10 @@ Three filters, in order:
    to a Nazi architect. Glosses tagged as slurs or vulgar are dropped too.
 
 What survives, ranked by score and then by rarity, is words like `nematode`,
-`rictus`, `newel`, `fescue`, `thane`, `plenum`. Real boards yield 29–135 candidates,
-so the column of eight is never scraping the barrel.
+`rictus`, `newel`, `fescue`, `thane`, `plenum`. Measured over 2000 boards
+(`npm run floor`), the supply of teachable words per board has a median of 53 and
+a minimum of 4; only 0.1% of boards come in under the eight the column shows. So
+the filters are strict without ever emptying the column.
 
 The frequency band in `src/game/vocab.ts` is the knob to turn after playing a few
 rounds. It is the one number most worth arguing about.

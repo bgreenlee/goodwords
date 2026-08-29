@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import { BIG_BOGGLE_DICE, CELL_COUNT, rollBoard, neighbors } from "./dice";
 import { roundAt, PLAY_MS, ROUND_MS } from "./schedule";
 import { scoreWord } from "./scoring";
+import { scoreRound } from "./round";
 import { findPath, solveBoard } from "./solver";
 import { Trie } from "./trie";
 
@@ -153,5 +154,33 @@ describe("solver", () => {
     let worst = Infinity;
     for (let r = 0; r < 250; r++) worst = Math.min(worst, solveBoard(rollBoard(r), trie).size);
     expect(worst).toBeGreaterThan(20);
+  });
+});
+
+describe("scoring a round", () => {
+  const solution = new Set(["cats", "tramp", "banjos", "quiet"]);
+
+  test("missed is exactly the solution minus what was found", () => {
+    const r = scoreRound(7, solution, ["cats", "banjos"]);
+    expect(r.round).toBe(7);
+    expect([...r.missed].sort()).toEqual(["quiet", "tramp"]);
+    expect(r.found).toEqual(["cats", "banjos"]);
+    expect(r.score).toBe(scoreWord("cats") + scoreWord("banjos"));
+    expect(r.total).toBe([...solution].reduce((n, w) => n + scoreWord(w), 0));
+  });
+
+  test("a word the player found is never also reported as missed", () => {
+    for (const guesses of [[], ["cats"], [...solution]]) {
+      const r = scoreRound(0, solution, guesses);
+      for (const g of guesses) expect(r.missed).not.toContain(g);
+      expect(r.missed.length + guesses.length).toBe(solution.size);
+      expect(r.score).toBeLessThanOrEqual(r.total);
+    }
+  });
+
+  test("guesses that are not on the board cannot inflate the score", () => {
+    // Only words in the solution count, however the guess list was populated.
+    const r = scoreRound(0, solution, ["zebra", "cats"]);
+    expect(r.score).toBe(scoreWord("cats"));
   });
 });

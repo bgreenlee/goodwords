@@ -12,7 +12,8 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "deploy": "npm run build && npx wrangler pages deploy dist --project-name goodwords",
-    "analyze": "vitest run tools/analyze.test.ts"
+    "analyze": "vitest run tools/analyze.test.ts",
+    "floor": "vitest run tools/floor.test.ts"
   },
   "dependencies": {
     "react": "^19.1.0",
