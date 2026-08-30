@@ -77,3 +77,21 @@ export function neighbors(i: number): number[] {
 export const ADJACENCY: readonly number[][] = Array.from({ length: CELL_COUNT }, (_, i) =>
   neighbors(i),
 );
+
+/**
+ * Cell order for a board turned `quarters` × 90° clockwise: the entry at each
+ * display position gives the index of the board cell that belongs there. Letters
+ * stay upright — turning the grid is for seeing new words, not for reading sideways.
+ */
+export function rotatedOrder(quarters: number): number[] {
+  let order = Array.from({ length: CELL_COUNT }, (_, i) => i);
+  const turns = ((quarters % 4) + 4) % 4;
+  for (let q = 0; q < turns; q++) {
+    order = order.map((_, i) => {
+      const row = Math.floor(i / BOARD_SIZE);
+      const col = i % BOARD_SIZE;
+      return order[(BOARD_SIZE - 1 - col) * BOARD_SIZE + row];
+    });
+  }
+  return order;
+}

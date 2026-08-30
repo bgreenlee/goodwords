@@ -223,6 +223,24 @@ body {
   color: var(--ink-faint);
 }
 
+.clock__rotate {
+  margin-left: auto;
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ink-soft);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.clock__rotate:hover {
+  color: var(--ink);
+  border-color: var(--ink-faint);
+}
+
 .clock--break .clock__time {
   color: var(--accent);
 }

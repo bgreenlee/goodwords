@@ -36,6 +36,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
   const [path, setPath] = useState<number[]>([]);
   const [traced, setTraced] = useState<number[] | null>(null);
+  const [rotation, setRotation] = useState(0);
   const [results, setResults] = useState<RoundResults | null>(null);
   const [history, setHistory] = useState<History>(loadHistory);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +97,41 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     // Only fold in a given round once, however often this re-renders.
   }, [results?.round]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Typing should just work, without having to click the box first, and space
+  // turns the board the way you would turn the physical one.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      const inTextField = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA";
+
+      if (event.key === " ") {
+        // The name field is the one place a space should stay a space.
+        if (target?.classList.contains("topbar__name")) return;
+        event.preventDefault();
+        setRotation((r) => (r + 1) % 4);
+        return;
+      }
+      if (inTextField) return;
+
+      const field = inputRef.current;
+      if (!field || field.disabled) return;
+      if (/^[a-z]$/i.test(event.key)) {
+        event.preventDefault();
+        field.focus();
+        setEntry((prev) => prev + event.key.toLowerCase());
+      } else if (event.key === "Backspace") {
+        event.preventDefault();
+        field.focus();
+        setEntry((prev) => prev.slice(0, -1));
+      } else if (event.key === "Enter") {
+        field.focus();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const score = guesses.reduce((n, w) => n + scoreWord(w), 0);
   const playing = phase === "playing";
 
@@ -144,9 +180,18 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
             <span className="clock__label">
               {playing ? "left in this round" : "until the next board"}
             </span>
+            <button
+              type="button"
+              className="clock__rotate"
+              title="Turn the board (space)"
+              aria-label="Turn the board"
+              onClick={() => setRotation((r) => (r + 1) % 4)}
+            >
+              ⟳
+            </button>
           </div>
 
-          <Board cells={board} path={traced ?? (playing ? path : [])} />
+          <Board cells={board} path={traced ?? (playing ? path : [])} rotation={rotation} />
 
           <form
             className="entry"

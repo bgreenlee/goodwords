@@ -1,6 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { BIG_BOGGLE_DICE, CELL_COUNT, rollBoard, neighbors } from "./dice";
+import {
+  BIG_BOGGLE_DICE,
+  CELL_COUNT,
+  rollBoard,
+  neighbors,
+  rotatedOrder,
+  BOARD_SIZE,
+} from "./dice";
 import { roundAt, PLAY_MS, ROUND_MS } from "./schedule";
 import { scoreWord } from "./scoring";
 import { scoreRound } from "./round";
@@ -182,5 +189,40 @@ describe("scoring a round", () => {
     // Only words in the solution count, however the guess list was populated.
     const r = scoreRound(0, solution, ["zebra", "cats"]);
     expect(r.score).toBe(scoreWord("cats"));
+  });
+});
+
+describe("rotation", () => {
+  test("no turn is the identity, and four turns come back round", () => {
+    const identity = Array.from({ length: CELL_COUNT }, (_, i) => i);
+    expect(rotatedOrder(0)).toEqual(identity);
+    expect(rotatedOrder(4)).toEqual(identity);
+    expect(rotatedOrder(-1)).toEqual(rotatedOrder(3));
+  });
+
+  test("every turn shows all 25 cells exactly once", () => {
+    for (let q = 0; q < 4; q++) {
+      expect(new Set(rotatedOrder(q)).size).toBe(CELL_COUNT);
+    }
+  });
+
+  test("a quarter turn clockwise puts the bottom-left cell top-left", () => {
+    // Row-major, so cell 20 is the bottom-left corner of a 5x5 grid.
+    expect(rotatedOrder(1)[0]).toBe(20);
+    expect(rotatedOrder(1)[BOARD_SIZE - 1]).toBe(0);
+  });
+
+  test("turning preserves adjacency, so the same words stay findable", () => {
+    for (let q = 0; q < 4; q++) {
+      const order = rotatedOrder(q);
+      const displayOf = new Map(order.map((cell, i) => [cell, i]));
+      for (let cell = 0; cell < CELL_COUNT; cell++) {
+        const before = neighbors(cell)
+          .map((n) => displayOf.get(n)!)
+          .sort((a, b) => a - b);
+        const after = neighbors(displayOf.get(cell)!).sort((a, b) => a - b);
+        expect(after).toEqual(before);
+      }
+    }
   });
 });

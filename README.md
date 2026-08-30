@@ -17,6 +17,13 @@ in the same 210-second window sees the same board without anything coordinating
 them. The dictionary and the definitions are static files. Your history lives in
 `localStorage`.
 
+Every clock update re-reads `Date.now()` rather than counting elapsed ticks, so the
+countdown cannot drift. That matters because browsers make timers unreliable on
+purpose: intervals are throttled to once a second in a hidden tab, once a minute
+after a few minutes there, and stop entirely while a laptop sleeps. The clock is
+also re-read on `visibilitychange`, `focus` and `pageshow`, so it is correct the
+instant the tab is visible again rather than after the next throttled tick.
+
 That makes V0 a static site with no database, which is why it deploys anywhere
 that serves files. When the leaderboard arrives, the natural home is a Cloudflare
 Durable Object — one per round, holding the scores, with a WebSocket per player.
@@ -57,6 +64,14 @@ letters. Letters must be adjacent, diagonals count, and no cell is reused within
 word. The board uses the real 25-die Big Boggle set, so the letter mix plays the
 way the physical game does — uniform random letters give vowel-starved boards. The
 Q die is always played as Qu.
+
+## Playing
+
+Just type — the word box does not need to be clicked first, and keystrokes are
+routed to it from anywhere on the page. Enter submits. **Space turns the board** a
+quarter turn, the way you would turn the physical one to see new words; the cells
+move but the letters stay upright, and turning never changes which words are
+findable. During the break, pointing at a missed word traces where it was.
 
 ## The definitions column
 

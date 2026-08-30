@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { chromium, type Browser, type Page } from "playwright";
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { rollBoard } from "../src/game/dice";
+import { rollBoard, rotatedOrder } from "../src/game/dice";
 import { solveBoard } from "../src/game/solver";
 import { Trie } from "../src/game/trie";
 import { PLAY_MS, ROUND_MS } from "../src/game/schedule";
@@ -190,3 +190,71 @@ test("a round the player never saw is not scored against them", async () => {
   expect(errors, errors.join("\n")).toEqual([]);
   await page.close();
 }, 45_000);
+
+test("you can type without clicking the box, and space turns the board", async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await installClock(page, ROUND * ROUND_MS + 30_000);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+
+  await page.goto(URL);
+  await page.waitForSelector(".tile");
+  const board = rollBoard(ROUND);
+
+  // Nothing focused: typing should still land in the word box.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  expect(await page.evaluate(() => document.activeElement?.className ?? "")).not.toContain("entry");
+  await page.keyboard.type("cat");
+  expect(await page.locator(".entry__input").inputValue()).toBe("cat");
+  await page.keyboard.press("Backspace");
+  expect(await page.locator(".entry__input").inputValue()).toBe("ca");
+
+  const tiles = () => page.$$eval(".tile", (els) => els.map((e) => e.textContent!.trim()));
+  expect(await tiles()).toEqual(board);
+
+  // Space turns the board even while the word box has focus, because a space is
+  // never part of a word.
+  await page.keyboard.press(" ");
+  expect(await tiles()).toEqual(rotatedOrder(1).map((c) => board[c]));
+  expect(await page.locator(".entry__input").inputValue()).toBe("ca");
+
+  await page.locator(".clock__rotate").click();
+  expect(await tiles()).toEqual(rotatedOrder(2).map((c) => board[c]));
+
+  await page.keyboard.press(" ");
+  await page.keyboard.press(" ");
+  expect(await tiles()).toEqual(board);
+
+  // A turned board must still accept the words it could spell before.
+  const words = readFileSync("public/data/words.txt", "utf8").split("\n");
+  const word = [...solveBoard(board, new Trie(words))][0];
+  await page.keyboard.press(" ");
+  await page.locator(".entry__input").fill(word);
+  await page.locator(".entry__input").press("Enter");
+  await page.waitForFunction((n) => document.querySelectorAll(".guesses li").length === n, 1);
+
+  // Typing a space into the name field must stay a space.
+  await page.locator(".topbar__name").fill("ada");
+  await page.locator(".topbar__name").press(" ");
+  await page.locator(".topbar__name").type("l");
+  expect(await page.locator(".topbar__name").inputValue()).toBe("ada l");
+
+  expect(errors, errors.join("\n")).toEqual([]);
+  await page.close();
+}, 45_000);
+
+test("the clock keeps ticking", async () => {
+  const page = await browser.newPage({ viewport: { width: 900, height: 700 } });
+  await installClock(page, ROUND * ROUND_MS + 30_000);
+  await page.goto(URL);
+  await page.waitForSelector(".clock__time");
+
+  const seen = new Set<string>();
+  for (let i = 0; i < 25; i++) {
+    seen.add((await page.locator(".clock__time").textContent())!);
+    await page.waitForTimeout(200);
+  }
+  // Five seconds of wall time must show about five distinct seconds.
+  expect(seen.size, [...seen].join(",")).toBeGreaterThanOrEqual(4);
+  await page.close();
+}, 30_000);
