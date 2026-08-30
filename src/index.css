@@ -282,8 +282,8 @@ body {
      transitions using the rules of the state it is moving to, so the highlight
      arrives at once and leaves slowly. */
   transition:
-    background 500ms ease,
-    color 500ms ease;
+    background 1000ms ease,
+    color 1000ms ease;
 }
 
 .tile--lit {
