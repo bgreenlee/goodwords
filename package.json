@@ -22,7 +22,8 @@
     "live": "vitest run tools/live.test.ts",
     "loadtest": "vitest run tools/loadtest.test.ts",
     "deploy:loadtest": "npm run build && wrangler deploy -c wrangler.loadtest.jsonc",
-    "destroy:loadtest": "wrangler delete -c wrangler.loadtest.jsonc"
+    "destroy:loadtest": "wrangler delete -c wrangler.loadtest.jsonc",
+    "loadbig": "vitest run tools/loadbig.test.ts"
   },
   "dependencies": {
     "react": "^19.1.0",

@@ -120,6 +120,47 @@ everyone sharing a board, not something to tune away.
 And again, this latency is only the leaderboard. Words are validated in the browser
 and appear at once.
 
+### Where it breaks
+
+`npm run loadbig` forks a client process per 1,500 sockets, because one Node
+process is the thing being measured past about two thousand. It reports close
+codes, and reads the room's own `/api/stats` while the load is on.
+
+Against the edge, the room held **about 2,900 sockets** with its broadcast cadence
+back on its 750ms target and a 190–230ms median. Past that, connections died with
+close code **1006** — an abnormal close with no close frame. The room never refused
+anyone; those were dropped below the application.
+
+Connection *rate* turned out to matter far more than connection *count*. The same
+five thousand players arriving in a burst left 107 survivors; arriving at about two
+hundred a second left 2,900.
+
+The reason is the one documented limit that binds here: a Durable Object has a
+[soft limit of 1,000 requests per second](https://developers.cloudflare.com/durable-objects/platform/limits/),
+and an inbound WebSocket message is a request. There is **no documented cap on
+WebSocket connections per object** — the ceiling is message rate, not sockets.
+
+That arithmetic matches every measurement:
+
+- a burst of 5,000 connections is 5,000 requests in a couple of seconds, far past
+  1,000/s, so most are shed — which is exactly what 1006 looks like
+- 2,900 players at a word every 4s is ~725 requests/s, just under, and it held
+- a player finding twenty words in a three-minute round averages one word per nine
+  seconds, or 0.11 requests/s
+
+So on **one room**: roughly **9,000 players at a realistic pace**, ~4,000 at the
+brisk rate this harness uses. Broadcasts do not count against it — they are
+outgoing — and CPU was not the binding constraint at 2,900.
+
+Beyond that, shard. At ~9,000 per room, 20,000 needs three rooms and 100,000 needs
+a dozen, each with a per-round aggregator merging their top scores — which is the
+design already sketched above. 100,000 in a single room is not a tuning problem; it
+is about eleven times a documented limit.
+
+What is *not* measured: 10,000 and beyond. One laptop on one IP cannot generate it —
+the failures above are transport-level drops, not the room saying no. Doing it
+properly needs load generated from several machines.
+
 A round's own scores never leave memory: they are worthless thirty seconds later.
 The rolling day is the one thing that outlives a round, and it lives in the
 object's own SQLite — two small tables, no separate database. Rows older than

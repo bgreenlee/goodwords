@@ -59,6 +59,14 @@ export class GameRoom {
   private loading: Promise<WordIndex> | null = null;
   private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
   private lastBroadcast = 0;
+  /**
+   * Health of the fan-out. A worker freezes Date.now() during synchronous work, so
+   * a broadcast cannot time itself; what it can see is how far apart consecutive
+   * broadcasts land. When that stretches past the interval the room is behind.
+   */
+  private broadcasts = 0;
+  private worstGapMs = 0;
+  private lastGapMs = 0;
   private nextId = 1;
   /** Restarting resets the counter, so ids carry something that does not repeat. */
   private readonly instance = Math.random().toString(36).slice(2, 8);
@@ -70,6 +78,16 @@ export class GameRoom {
   }
 
   async fetch(request: Request): Promise<Response> {
+    if (new URL(request.url).pathname.endsWith("/stats")) {
+      return Response.json({
+        players: this.players.size,
+        round: this.live?.round ?? null,
+        broadcasts: this.broadcasts,
+        lastGapMs: this.lastGapMs,
+        worstGapMs: this.worstGapMs,
+        intervalMs: LEADERBOARD_INTERVAL_MS,
+      });
+    }
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("expected websocket", { status: 426 });
     }
@@ -310,7 +328,13 @@ export class GameRoom {
   }
 
   private broadcastLeaderboard(): void {
-    this.lastBroadcast = Date.now();
+    const at = Date.now();
+    if (this.lastBroadcast > 0) {
+      this.lastGapMs = at - this.lastBroadcast;
+      if (this.lastGapMs > this.worstGapMs) this.worstGapMs = this.lastGapMs;
+    }
+    this.broadcasts++;
+    this.lastBroadcast = at;
     const round = this.live?.round ?? 0;
     const ranked = [...this.players.values()]
       .filter((p) => p.score > 0)
