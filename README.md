@@ -109,6 +109,23 @@ happily keep passing on stale artifacts.
 
 ## Deploying
 
+Pushing to `main` deploys, once the two secrets below exist. GitHub Actions
+typechecks, runs the whole suite against a real browser and a real worker, and
+only then deploys and smoke tests the live site — so a red build never reaches
+`goodwords.fun`. Pull requests run the tests but never see the secrets.
+
+Two secrets are needed, both from the Cloudflare account that owns the domain:
+
+    # https://dash.cloudflare.com/profile/api-tokens
+    # Create Token -> "Edit Cloudflare Workers" template, and include the
+    # goodwords.fun zone so the custom domains can be attached.
+    gh secret set CLOUDFLARE_API_TOKEN
+    gh secret set CLOUDFLARE_ACCOUNT_ID
+
+Until they exist the deploy step is skipped with a warning rather than failing.
+
+By hand, which is the same path CI takes:
+
     npx wrangler login
     npm run deploy
     npm run smoke     # checks the deployment actually deals a board

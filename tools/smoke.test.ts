@@ -20,17 +20,24 @@ const BASE = process.env.SMOKE_URL ?? "https://goodwords.fun";
 const assetsOf = (html: string) =>
   [...html.matchAll(/\/assets\/[A-Za-z0-9_.-]+/g)].map((m) => m[0]).sort();
 
-test("the deployment matches the current build", () => {
+test("the deployment matches the current build", async () => {
   // Committing is not deploying. Twice now a change has been verified locally,
   // pushed, and left un-deployed; comparing the hashed asset names says so plainly.
   const local = assetsOf(readFileSync("dist/index.html", "utf8"));
   expect(local.length, "no built assets — run npm run build").toBeGreaterThan(0);
-  return fetch(BASE)
-    .then((r) => r.text())
-    .then((html) => {
-      expect(assetsOf(html), "the deployment is behind dist/ — run npm run deploy").toEqual(local);
-    });
-}, 30_000);
+
+  // A fresh deploy takes a few seconds to be served everywhere, so give it time
+  // rather than reporting drift that is about to resolve itself.
+  const deadline = Date.now() + 60_000;
+  let served: string[] = [];
+  for (;;) {
+    served = assetsOf(await fetch(BASE).then((r) => r.text()));
+    if (JSON.stringify(served) === JSON.stringify(local)) return;
+    if (Date.now() > deadline) break;
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  expect(served, "the deployment is behind dist/ — run npm run deploy").toEqual(local);
+}, 90_000);
 
 test("the deployed game serves, deals a board, and scores a word", async () => {
   const page = await fetch(BASE);
