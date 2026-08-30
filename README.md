@@ -369,10 +369,12 @@ your vocabulary? Picking the words well matters more than anything else here.
 
 Three filters, in order:
 
-1. **Only lemmas.** WordNet defines `snore`, and a Boggle list is full of `snores`,
-   `snoring`, `snored`. Defining an inflection of a word you already know teaches
-   nothing, so an inflected board word is credited to the lemma it comes from and
-   shown as "on the board as …".
+1. **One entry per headword, and none you already found.** WordNet defines `snore`,
+   and a Boggle list is full of `snores`, `snoring`, `snored`; they collapse to one
+   entry. The word you missed is what the entry is titled — you missed `mooches`,
+   not `mooch` — with the root named beneath and its definition below that. If you
+   found any form of a word, it is dropped: being taught `mooch` while `mooch` sits
+   in your own list of finds reads as a mistake, because it is one.
 2. **Only real vocabulary.** Words are scored by Zipf frequency and kept between
    1.8 and 4.2. Above that you already know the word (`cat` is 4.8); below it you
    are looking at Scrabble-list residue (`reoil` and `naled` are 0–1.1).

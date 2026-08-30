@@ -18,17 +18,26 @@ export type Teachable = {
 /**
  * Pick the words from `missed` most worth learning: highest scoring first, and
  * among equals the least common, since those are likeliest to be new.
+ *
+ * Words whose headword you already found are left out. Finding "mooch" and missing
+ * "mooches" is not a gap in anyone's vocabulary, and being taught "mooch" when it
+ * is sitting in your own list of words reads as a mistake.
  */
 export function teachableFrom(
   missed: Iterable<string>,
+  found: Iterable<string>,
   vocab: Vocab,
   data: GameData,
   limit = TEACH_LIMIT,
 ): Teachable[] {
+  const known = new Set<string>();
+  for (const word of found) known.add(vocab.lemmaOf[word] ?? word);
+
   // Many board words reduce to one headword; keep the highest-scoring spelling.
   const byLemma = new Map<string, string>();
   for (const word of missed) {
     const lemma = vocab.lemmaOf[word] ?? word;
+    if (known.has(lemma)) continue;
     const entry = vocab.defs[lemma];
     if (!entry) continue;
     const z = data.zipf(lemma);

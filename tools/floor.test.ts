@@ -18,7 +18,7 @@ test("teachable floor across many boards", () => {
   for (let r = 0; r < N; r++) {
     const board = rollBoard(r);
     // Nothing found, so this is the full supply of teachable words for the board.
-    const all = teachableFrom(solveBoard(board, data.trie), vocab, data, 1000);
+    const all = teachableFrom(solveBoard(board, data.trie), [], vocab, data, 1000);
     counts.push(all.length);
   }
   counts.sort((a, b) => a - b);

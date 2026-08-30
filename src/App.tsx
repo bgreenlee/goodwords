@@ -158,7 +158,8 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   // Alone we spot it ourselves; live the room confirms it.
   const bonusFound = soloHit ?? room.bonusHit;
 
-  const taught = results && vocab ? teachableFrom(results.missed, vocab, data) : null;
+  const taught =
+    results && vocab ? teachableFrom(results.missed, results.found, vocab, data) : null;
   const tracingThisBoard = results?.round === round;
 
   // The word the pointer is resting on, so a repeat of the same hover does not

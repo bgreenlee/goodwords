@@ -113,9 +113,10 @@ export function HistoryDialog({ games, onClose }: Props) {
                       {game.taught.map((t) => (
                         <li key={t.lemma} className="vocab__item">
                           <div className="vocab__head">
-                            <span className="vocab__word">{t.lemma}</span>
+                            <span className="vocab__word">{t.word}</span>
                             <span className="vocab__pos">{t.partOfSpeech}</span>
                           </div>
+                          {t.lemma !== t.word && <div className="vocab__via">from {t.lemma}</div>}
                           <p className="vocab__gloss">{t.gloss}</p>
                         </li>
                       ))}

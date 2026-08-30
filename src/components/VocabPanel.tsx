@@ -37,11 +37,12 @@ export function VocabPanel({ words, loading, learnedCount, onHover }: Props) {
                 onPointerMove={() => onHover?.(w.word)}
               >
                 <div className="vocab__head">
-                  <span className="vocab__word">{w.lemma}</span>
+                  {/* The word you missed, not its headword: you missed "mooches". */}
+                  <span className="vocab__word">{w.word}</span>
                   <span className="vocab__pos">{w.partOfSpeech}</span>
                   <span className="vocab__pts">{w.points} pt</span>
                 </div>
-                {w.lemma !== w.word && <div className="vocab__via">on the board as “{w.word}”</div>}
+                {w.lemma !== w.word && <div className="vocab__via">from {w.lemma}</div>}
                 <p className="vocab__gloss">{w.gloss}</p>
               </li>
             ))}

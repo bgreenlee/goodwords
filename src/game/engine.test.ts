@@ -11,6 +11,7 @@ import {
 import { roundAt, PLAY_MS, ROUND_MS } from "./schedule";
 import { scoreWord } from "./scoring";
 import { pickBonus } from "./bonus";
+import { teachableFrom } from "./vocab";
 import { TEACH_ZIPF_MAX, TEACH_ZIPF_MIN } from "./vocab";
 import { labelRows } from "../names";
 import { scoreRound } from "./round";
@@ -374,5 +375,39 @@ describe("duplicate names", () => {
     expect(labelRows(rows).get("player-one")).toBe(
       labelRows([...rows].reverse()).get("player-one"),
     );
+  });
+});
+
+describe("what the missed column teaches", () => {
+  const vocab = JSON.parse(readFileSync("public/data/vocab.json", "utf8")) as {
+    defs: Record<string, string>;
+    lemmaOf: Record<string, string>;
+  };
+  const freq = new Uint8Array(readFileSync("public/data/freq.bin"));
+  const rank = new Map(words.map((w, i) => [w, freq[i]]));
+  const data = { trie, zipf: (w: string) => (rank.get(w) ?? 0) / 32 };
+
+  test("a headword you already found is not explained back to you", () => {
+    // Reported from play: found "mooch", missed "mooches", and was taught "mooch".
+    expect(vocab.lemmaOf["mooches"]).toBe("mooch");
+
+    const cold = teachableFrom(["mooches"], [], vocab, data);
+    expect(cold.map((t) => t.lemma)).toContain("mooch");
+
+    const alreadyKnown = teachableFrom(["mooches"], ["mooch"], vocab, data);
+    expect(alreadyKnown.map((t) => t.lemma)).not.toContain("mooch");
+  });
+
+  test("the entry names the word you missed, and the root it comes from", () => {
+    const [entry] = teachableFrom(["mooches"], [], vocab, data);
+    expect(entry.word, "the headword shown should be what you missed").toBe("mooches");
+    expect(entry.lemma, "the definition belongs to the root").toBe("mooch");
+    expect(entry.gloss.length).toBeGreaterThan(3);
+  });
+
+  test("finding one inflection hides the rest of that word", () => {
+    const missed = ["mooches", "mooched", "mooching"].filter((w) => trie.has(w));
+    expect(missed.length).toBeGreaterThan(1);
+    expect(teachableFrom(missed, ["mooch"], vocab, data)).toHaveLength(0);
   });
 });
