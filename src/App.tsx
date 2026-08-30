@@ -10,7 +10,19 @@ import { scoreRound, type RoundResults } from "./game/round";
 import { scoreWord } from "./game/scoring";
 import { findPath, solveBoard } from "./game/solver";
 import { teachableFrom } from "./game/vocab";
-import { loadHistory, saveHistory, type History } from "./history";
+import { HistoryDialog } from "./components/HistoryDialog";
+import { TopBar } from "./components/TopBar";
+import { Welcome } from "./components/Welcome";
+import {
+  addGame,
+  loadGames,
+  loadProfile,
+  loadProgress,
+  saveProfile,
+  saveProgress,
+  type PlayedGame,
+  type Profile,
+} from "./storage";
 import { useRoom } from "./useRoom";
 import { useRound } from "./useRound";
 
@@ -21,6 +33,12 @@ const NO_WORDS: Set<string> = new Set();
 
 /** How long an accepted word's path stays lit before fading back. */
 const HIGHLIGHT_MS = 700;
+/** Pace for replaying restored words to the room, under its ten-a-second limit. */
+const RESYNC_MS = 160;
+
+/** A stored round only resumes onto the board it was played on. */
+const boardsMatch = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((cell, i) => cell === b[i]);
 
 export default function App() {
   const [data, setData] = useState<GameData | null>(null);
@@ -38,8 +56,12 @@ export default function App() {
 }
 
 function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
-  const [history, setHistory] = useState<History>(loadHistory);
-  const room = useRoom(history.name);
+  const [profile, setProfile] = useState<Profile>(loadProfile);
+  const [games, setGames] = useState<PlayedGame[]>(loadGames);
+  const [dialog, setDialog] = useState<"welcome" | "help" | "games" | null>(
+    profile.welcomed ? null : "welcome",
+  );
+  const room = useRoom(profile.name);
   const { round, phase, remainingMs } = useRound(room.offsetMs);
   const [guesses, setGuesses] = useState<string[]>([]);
   const [entry, setEntry] = useState("");
@@ -70,12 +92,26 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   // Between rounds we hold the last board on screen but must not accept words on it.
   const waiting = key === null || cache.current?.key !== key;
 
+  // Words found before a refresh, waiting to be put back on their own board.
+  const interrupted = useRef(loadProgress());
+  const resync = useRef<string[]>([]);
+  const draining = useRef(false);
+
   // Clear play whenever the board changes — a new round, or a solo player being
   // promoted into a live game part way through one.
-  const [seenKey, setSeenKey] = useState(key);
+  const [seenKey, setSeenKey] = useState<string | null>(null);
   if (key !== null && seenKey !== key) {
     setSeenKey(key);
-    setGuesses([]);
+    // Read without clearing, so nothing here depends on how often React re-runs a
+    // render pass. The key check is what stops an old round resuming onto a new
+    // board, so consuming the ref would buy nothing.
+    const saved = interrupted.current;
+    const resumable =
+      saved && saved.key === key && boardsMatch(saved.board, board) ? saved.words : [];
+    setGuesses(resumable);
+    // The room only knows this connection, which has scored nothing, so play the
+    // restored words back to it rather than leaving the leaderboard behind.
+    if (resumable.length > 0) resync.current = [...resumable].reverse();
     setEntry("");
     setFeedback(null);
     setPath([]);
@@ -89,46 +125,66 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   if (seenPhase !== phase) {
     setSeenPhase(phase);
     if (phase === "break" && key !== null && seenKey === key) {
-      setResults(scoreRound(round, solution, guesses));
+      setResults(scoreRound(round, board, solution, guesses));
     }
   }
 
   const taught = results && vocab ? teachableFrom(results.missed, vocab, data) : null;
-  const sameBoard = results?.round === round;
+  const tracingThisBoard = results?.round === round;
 
   function trace(word: string | null) {
     setTraced(word ? findPath(board, word) : null);
   }
 
-  // Record what the player has been shown, so "words seen" survives a refresh.
+  // File the finished round: the board, what was found, and what was worth
+  // learning. Definitions can arrive after the round ends, so this waits for them
+  // rather than filing a game with an empty vocabulary list.
+  const filed = useRef<Set<number>>(new Set());
   useEffect(() => {
-    if (!taught || !results) return;
-    setHistory((prev) => {
+    if (!results || !taught || filed.current.has(results.round)) return;
+    filed.current.add(results.round);
+
+    setProfile((prev) => {
       const learned = new Set(prev.learned);
       for (const t of taught) learned.add(t.lemma);
-      const next: History = {
-        ...prev,
-        learned: [...learned],
-        roundsPlayed: prev.roundsPlayed + 1,
-        bestScore: Math.max(prev.bestScore, results.score),
-      };
-      saveHistory(next);
+      const next: Profile = { ...prev, learned: [...learned] };
+      saveProfile(next);
       return next;
     });
-    // Only fold in a given round once, however often this re-renders.
-  }, [results?.round]); // eslint-disable-line react-hooks/exhaustive-deps
+    setGames((prev) =>
+      addGame(prev, {
+        round: results.round,
+        board: results.board,
+        words: results.found,
+        score: results.score,
+        total: results.total,
+        possible: results.found.length + results.missed.length,
+        taught: taught.map((t) => ({
+          lemma: t.lemma,
+          word: t.word,
+          partOfSpeech: t.partOfSpeech,
+          gloss: t.gloss,
+        })),
+        at: Date.now(),
+      }),
+    );
+  }, [results, taught]);
 
   // Typing should just work, without having to click the box first, and space
-  // turns the board the way you would turn the physical one.
+  // turns the board the way you would turn the physical one — except while a
+  // dialog is up, where those keys belong to the dialog.
+  const dialogOpen = useRef(false);
+  dialogOpen.current = dialog !== null;
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if (dialogOpen.current) return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
       const inTextField = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA";
 
       if (event.key === " ") {
-        // The name field is the one place a space should stay a space.
-        if (target?.classList.contains("topbar__name")) return;
+        // A space is never part of a word, and the only other text fields live in
+        // dialogs, which have already returned above.
         event.preventDefault();
         setRotation((r) => (r + 1) % 4);
         return;
@@ -152,6 +208,28 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  useEffect(() => {
+    if (key === null || waiting) return;
+    saveProgress(guesses.length > 0 ? { key, board, words: guesses } : null);
+  }, [guesses, key, waiting, board]);
+
+  // Replay restored words at a human pace; sending them at once would trip the
+  // room's rate limit and be refused.
+  useEffect(() => {
+    if (room.status !== "live" || resync.current.length === 0 || draining.current) return;
+    draining.current = true;
+    const step = () => {
+      const word = resync.current.shift();
+      if (!word) {
+        draining.current = false;
+        return;
+      }
+      room.submit(word);
+      setTimeout(step, RESYNC_MS);
+    };
+    step();
+  }, [room.status, seenKey, room]);
 
   useEffect(() => {
     if (path.length === 0) return;
@@ -183,25 +261,13 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
 
   return (
     <div className="app">
-      <header className="topbar">
-        <h1>
-          Good Words <span className="topbar__tag">5×5 · 4 letters and up</span>
-        </h1>
-        <div className="topbar__right">
-          <input
-            className="topbar__name"
-            value={history.name}
-            placeholder="your name"
-            maxLength={16}
-            onChange={(e) => {
-              const next = { ...history, name: e.target.value };
-              setHistory(next);
-              saveHistory(next);
-            }}
-          />
-          <span className="topbar__stat">{history.learned.length} words seen</span>
-        </div>
-      </header>
+      <TopBar
+        name={profile.name}
+        learned={profile.learned.length}
+        games={games.length}
+        onHelp={() => setDialog("help")}
+        onHistory={() => setDialog("games")}
+      />
 
       <main className="columns">
         <section className="panel panel--game">
@@ -275,8 +341,8 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
         <VocabPanel
           words={taught}
           loading={results !== null && vocab === null}
-          learnedCount={history.learned.length}
-          onHover={sameBoard ? trace : null}
+          learnedCount={profile.learned.length}
+          onHover={tracingThisBoard ? trace : null}
         />
       </main>
 
@@ -284,6 +350,22 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
         Definitions from <a href="https://wordnet.princeton.edu/">WordNet 3.1</a>, Princeton
         University. Word list: ENABLE, public domain.
       </footer>
+
+      {(dialog === "welcome" || dialog === "help") && (
+        <Welcome
+          firstRun={dialog === "welcome"}
+          name={profile.name}
+          onStart={(name) => {
+            const next: Profile = { ...profile, name, welcomed: true };
+            setProfile(next);
+            saveProfile(next);
+            setDialog(null);
+            inputRef.current?.focus();
+          }}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === "games" && <HistoryDialog games={games} onClose={() => setDialog(null)} />}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { chromium, type Browser, type Page } from "playwright";
+import { seedReturningPlayer } from "./pagesetup";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { rollBoard } from "../src/game/dice";
 import { roundAt } from "../src/game/schedule";
@@ -47,9 +48,9 @@ async function waitForPlayTime(minMs = 30_000) {
 
 async function join(name: string): Promise<Page> {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await seedReturningPlayer(page, name);
   await page.goto(URL);
   await page.waitForSelector(".tile");
-  await page.locator(".topbar__name").fill(name);
   // The leaderboard reports "live" only once the socket has dealt a board.
   await page.waitForSelector('[data-room="live"]', { timeout: 20_000 });
   return page;
@@ -138,6 +139,7 @@ test("a word the board cannot spell is refused by the server", async () => {
 test("a client whose clock runs ahead waits for the deal instead of inventing a board", async () => {
   await waitForPlayTime(40_000);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await seedReturningPlayer(page);
   // A clock that has already reached the next round, before the server has dealt
   // its board — the state every player passes through at every boundary.
   await page.addInitScript(`(() => {

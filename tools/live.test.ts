@@ -5,6 +5,7 @@ import { expect, test } from "vitest";
 import { solveBoard } from "../src/game/solver";
 import { Trie } from "../src/game/trie";
 import { roundAt } from "../src/game/schedule";
+import { seedReturningPlayer } from "./pagesetup";
 
 const HOST = process.env.LIVE_HOST ?? "goodwords.fun";
 const IP = process.env.LIVE_IP;
@@ -20,10 +21,10 @@ test("two browsers play each other on the deployed site", async () => {
   });
   const join = async (name: string) => {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await seedReturningPlayer(page, name);
     await page.goto(`https://${HOST}/`);
     await page.waitForSelector('[data-room="live"]', { timeout: 30_000 });
     await page.waitForSelector(".tile");
-    await page.locator(".topbar__name").fill(name);
     return page;
   };
 

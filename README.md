@@ -136,11 +136,24 @@ Q die is always played as Qu.
 
 ## Playing
 
+A first visit explains the rules and asks for a name before the board appears —
+it is the one thing you must supply, and it is what the leaderboard shows. **How
+to play** in the header brings the same panel back and lets you change it.
+
 Just type — the word box does not need to be clicked first, and keystrokes are
 routed to it from anywhere on the page. Enter submits. **Space turns the board** a
 quarter turn, the way you would turn the physical one to see new words; the cells
 move but the letters stay upright, and turning never changes which words are
 findable. During the break, pointing at a missed word traces where it was.
+
+A refresh does not cost you the round: the words found so far are kept and put
+back, but only onto the board they were played on. When the game is live they are
+also replayed to the room, spaced out so the rate limit does not refuse them, so
+the leaderboard catches up too.
+
+Finished rounds are kept — the last sixty — under **Games** in the header, each
+with its board, the words you found, and the definitions you were shown. It is all
+in `localStorage`; there is still no account and nothing leaves the browser.
 
 ## The definitions column
 
@@ -178,6 +191,7 @@ rounds. It is the one number most worth arguing about.
       wordindex.ts  binary search over the word list, for a single lookup
       solver.ts     full board solve, and pathfinding for one word
       vocab.ts      which missed words are worth teaching
+    src/storage.ts  what the browser remembers: profile, past games, the round in play
     src/net/      the wire format, shared by browser and worker
     src/useRoom.ts  the connection: joins, retries, falls back to solo
     src/components/ the three columns

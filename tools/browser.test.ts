@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { chromium, type Browser, type Page } from "playwright";
+import { chromium, type Browser } from "playwright";
+import { installClock, seedReturningPlayer } from "./pagesetup";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { rollBoard, rotatedOrder } from "../src/game/dice";
 import { solveBoard } from "../src/game/solver";
@@ -17,17 +18,6 @@ const START = ROUND * ROUND_MS + PLAY_MS - 6000;
 
 let server: ReturnType<typeof spawn>;
 let browser: Browser;
-
-/** Run the page on a clock we control, so a round boundary can be forced. */
-async function installClock(page: Page, at: number) {
-  await page.addInitScript(`(() => {
-    let target = ${at};
-    const real = Date.now;
-    let t0 = real();
-    Date.now = () => target + (real() - t0);
-    window.__setNow = (ms) => { target = ms; t0 = real(); };
-  })();`);
-}
 
 beforeAll(async () => {
   server = spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort"], {
@@ -52,6 +42,7 @@ afterAll(async () => {
 
 test("plays a round in a real browser", async () => {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await seedReturningPlayer(page);
   await installClock(page, START);
 
   const errors: string[] = [];
@@ -158,6 +149,7 @@ test("a round the player never saw is not scored against them", async () => {
   // some later round's break, the words typed on the old board must not be counted
   // as finds on a board the player never saw.
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await seedReturningPlayer(page);
   await installClock(page, ROUND * ROUND_MS + 60_000);
 
   const errors: string[] = [];
@@ -196,6 +188,7 @@ test("a round the player never saw is not scored against them", async () => {
 
 test("you can type without clicking the box, and space turns the board", async () => {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await seedReturningPlayer(page);
   await installClock(page, ROUND * ROUND_MS + 30_000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e)));
@@ -236,11 +229,14 @@ test("you can type without clicking the box, and space turns the board", async (
   await page.locator(".entry__input").press("Enter");
   await page.waitForFunction((n) => document.querySelectorAll(".guesses li").length === n, 1);
 
-  // Typing a space into the name field must stay a space.
-  await page.locator(".topbar__name").fill("ada");
-  await page.locator(".topbar__name").press(" ");
-  await page.locator(".topbar__name").type("l");
-  expect(await page.locator(".topbar__name").inputValue()).toBe("ada l");
+  // A space typed into a dialog's field must stay a space, not turn the board.
+  await page.locator(".topbar__btn", { hasText: "How to play" }).click();
+  await page.waitForSelector(".sheet__input");
+  await page.locator(".sheet__input").fill("ada");
+  await page.locator(".sheet__input").press(" ");
+  await page.locator(".sheet__input").type("l");
+  expect(await page.locator(".sheet__input").inputValue()).toBe("ada l");
+  await page.keyboard.press("Escape");
 
   expect(errors, errors.join("\n")).toEqual([]);
   await page.close();
@@ -248,6 +244,7 @@ test("you can type without clicking the box, and space turns the board", async (
 
 test("the clock keeps ticking", async () => {
   const page = await browser.newPage({ viewport: { width: 900, height: 700 } });
+  await seedReturningPlayer(page);
   await installClock(page, ROUND * ROUND_MS + 30_000);
   await page.goto(URL);
   await page.waitForSelector(".clock__time");
@@ -264,6 +261,7 @@ test("the clock keeps ticking", async () => {
 
 test("an accepted word flashes on the board and then fades", async () => {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await seedReturningPlayer(page);
   await installClock(page, ROUND * ROUND_MS + 30_000);
   await page.goto(URL);
   await page.waitForSelector(".tile");
@@ -310,6 +308,7 @@ test("an accepted word flashes on the board and then fades", async () => {
 
 test("tracing a missed word stays lit while pointed at", async () => {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await seedReturningPlayer(page);
   await installClock(page, ROUND * ROUND_MS + PLAY_MS - 3000);
   await page.goto(URL);
   await page.waitForSelector(".tile");

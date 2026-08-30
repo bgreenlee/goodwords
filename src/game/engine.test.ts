@@ -167,10 +167,12 @@ describe("solver", () => {
 
 describe("scoring a round", () => {
   const solution = new Set(["cats", "tramp", "banjos", "quiet"]);
+  const BOARD = rollBoard(1);
 
   test("missed is exactly the solution minus what was found", () => {
-    const r = scoreRound(7, solution, ["cats", "banjos"]);
+    const r = scoreRound(7, BOARD, solution, ["cats", "banjos"]);
     expect(r.round).toBe(7);
+    expect(r.board).toEqual(BOARD);
     expect([...r.missed].sort()).toEqual(["quiet", "tramp"]);
     expect(r.found).toEqual(["cats", "banjos"]);
     expect(r.score).toBe(scoreWord("cats") + scoreWord("banjos"));
@@ -179,7 +181,7 @@ describe("scoring a round", () => {
 
   test("a word the player found is never also reported as missed", () => {
     for (const guesses of [[], ["cats"], [...solution]]) {
-      const r = scoreRound(0, solution, guesses);
+      const r = scoreRound(0, BOARD, solution, guesses);
       for (const g of guesses) expect(r.missed).not.toContain(g);
       expect(r.missed.length + guesses.length).toBe(solution.size);
       expect(r.score).toBeLessThanOrEqual(r.total);
@@ -188,7 +190,7 @@ describe("scoring a round", () => {
 
   test("guesses that are not on the board cannot inflate the score", () => {
     // Only words in the solution count, however the guess list was populated.
-    const r = scoreRound(0, solution, ["zebra", "cats"]);
+    const r = scoreRound(0, BOARD, solution, ["zebra", "cats"]);
     expect(r.score).toBe(scoreWord("cats"));
   });
 });
