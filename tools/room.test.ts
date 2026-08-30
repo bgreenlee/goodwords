@@ -187,15 +187,18 @@ test("a flood of guesses is throttled rather than scored", async () => {
   c.send({ t: "hello", name: "bot" });
   const dealt = await c.next("board");
   const solution = [...solveBoard(dealt.board, trie)];
-  expect(solution.length).toBeGreaterThan(25);
+  // The room deals a random board and some are lean — one came in at 24 words. The
+  // limit is ten a second, so a flood only has to comfortably exceed that.
+  expect(solution.length).toBeGreaterThan(12);
+  const flood = solution.slice(0, 25);
 
-  // Paste 25 real words at once, which no person can type.
-  for (const w of solution.slice(0, 25)) c.send({ t: "word", w });
+  // Paste them all at once, which no person can type.
+  for (const w of flood) c.send({ t: "word", w });
 
   let accepted = 0;
   let throttled = 0;
   const deadline = Date.now() + 4000;
-  while (accepted + throttled < 25 && Date.now() < deadline) {
+  while (accepted + throttled < flood.length && Date.now() < deadline) {
     const msg = await Promise.race([
       c
         .next("ok", 1500)
