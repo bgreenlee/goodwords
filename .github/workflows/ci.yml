@@ -35,11 +35,12 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: playwright-chromium-webkit-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - run: npx playwright install --with-deps chromium
+      # WebKit as well as Chromium: the mobile tests need the engine iOS runs.
+      - run: npx playwright install --with-deps chromium webkit
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-      - run: npx playwright install-deps chromium
+      - run: npx playwright install-deps chromium webkit
         if: steps.playwright-cache.outputs.cache-hit == 'true'
 
       # Covers the app and the worker; they have separate tsconfigs and the worker
