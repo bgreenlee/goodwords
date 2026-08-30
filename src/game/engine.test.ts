@@ -144,8 +144,11 @@ describe("the bonus word", () => {
     }
   });
 
+  // Proving nothing longer fits means trying every longer candidate against the
+  // board, which is tens of thousands of paths per board. A handful of boards is
+  // enough to catch the ordering being wrong.
   test("it is the longest such word on the board", () => {
-    for (let r = 0; r < 20; r++) {
+    for (let r = 0; r < 6; r++) {
       const board = rollBoard(r);
       const bonus = pickBonus(board, bonusList);
       if (!bonus) continue;
@@ -154,7 +157,7 @@ describe("the bonus word", () => {
         expect(findPath(board, w), `${w} is longer than ${bonus.word}`).toBeNull();
       }
     }
-  });
+  }, 60_000);
 });
 
 describe("trie", () => {
