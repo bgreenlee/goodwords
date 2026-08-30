@@ -82,9 +82,43 @@ with a visibly laggier leaderboard, and past that the sharding above is the answ
 A durable object also caps at 32,768 sockets and 128 MB, neither of which was in
 reach at 2,000.
 
-Run it against a deployed worker with `LOAD_WS=wss://… LOAD_HTTP=https://… npm run
-loadtest`. Point it at a throwaway deployment, not the real one: it fills the day's
-standings with bots.
+### On real infrastructure
+
+`npm run deploy:loadtest` publishes the same code as `goodwords-loadtest`, which
+gets its own durable object namespace, so bots never reach the real standings.
+Then:
+
+    LOAD_WS=wss://goodwords-loadtest.<subdomain>.workers.dev \
+    LOAD_HTTP=https://goodwords-loadtest.<subdomain>.workers.dev \
+    PLAYERS=1000 npm run loadtest
+
+Measured from one laptop on the US west coast against a room pinned to
+`enam`:
+
+    players   p50    p95     p99    dropped
+         1    82ms   87ms    87ms     none     <- network floor, no room work
+       200   120ms  175ms   186ms     none
+       500   271ms  601ms   873ms     none
+      1000   248ms  632ms   980ms     none
+      2000   346ms  948ms  1178ms     none
+
+Two thousand sockets, nothing dropped, every word scored, and the leaderboard kept
+its cadence. Take the tail with caution: two thousand TLS sessions from a single
+machine and a single IP is itself heavy — the ramp alone took 6.8 seconds — and
+real players arrive from many addresses and many colos.
+
+The interesting result is a diagnostic. Running a thousand players at a quarter of
+the word rate did not improve latency at all (p50 330ms against 248ms). The cost
+tracks the number of *connections*, not the number of words, which is what a room
+broadcasting to everyone should do, and it says the room is nowhere near limited
+by validating words.
+
+The 82ms floor is worth naming: one global room lives in one place, so a global
+leaderboard has an irreducible latency set by distance to it. That is the price of
+everyone sharing a board, not something to tune away.
+
+And again, this latency is only the leaderboard. Words are validated in the browser
+and appear at once.
 
 A round's own scores never leave memory: they are worthless thirty seconds later.
 The rolling day is the one thing that outlives a round, and it lives in the

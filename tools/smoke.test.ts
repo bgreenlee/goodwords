@@ -11,7 +11,6 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import { solveBoard } from "../src/game/solver";
 import { Trie } from "../src/game/trie";
-import { scoreWord } from "../src/game/scoring";
 import { roundAt } from "../src/game/schedule";
 import type { ServerMessage } from "../src/net/protocol";
 
@@ -76,10 +75,12 @@ test("the deployed game serves, deals a board, and scores a word", async () => {
   const solution = [...solveBoard(dealt.board, trie)];
   expect(solution.length, "the dealt board should be playable").toBeGreaterThan(20);
 
+  // Deliberately never scores. A finished round is kept for a day, and a check that
+  // runs on every deploy would sit in the standings next to people actually playing.
+  // Refusing a word proves as much of the path: the socket reached the room, the
+  // room dealt a board, and it consulted its own dictionary to say no. Scoring is
+  // covered against a throwaway worker by the room and multiplayer suites.
   if (roundAt(dealt.now).phase === "playing") {
-    ws.send(JSON.stringify({ t: "word", w: solution[0] }));
-    const ok = await waitFor("ok");
-    expect(ok.points).toBe(scoreWord(solution[0]));
     ws.send(JSON.stringify({ t: "word", w: "zzzzq" }));
     expect((await waitFor("no")).reason).toBe("not on this board");
   }

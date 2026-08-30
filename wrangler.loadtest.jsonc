@@ -1,0 +1,20 @@
+// A throwaway copy of the game for load measurement. Same code, its own name, so
+// it gets its own durable object namespace: bots never reach the real standings.
+// Deliberately no routes — goodwords.fun must stay pointed at the real worker.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "goodwords-loadtest",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-08-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "ROOM", "class_name": "GameRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }]
+}
