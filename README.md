@@ -84,8 +84,14 @@ it runs in production. For a fast edit loop instead, run `npm run dev` and
 Without a room the game still plays solo, so `npm run dev` alone is fine for
 anything that is not multiplayer.
 
-`npm test` runs the engine tests plus Playwright tests that play a real round in a
-browser and simulate a laptop waking mid-break. `npm run typecheck` covers tests as
+`npm test` runs the engine tests, the room's protocol and anti-cheat tests against a
+real `wrangler dev`, and Playwright tests that play a round in a browser, put two
+browsers in the same game, and simulate a laptop waking mid-break.
+
+`npm run test:boundary` is kept separate because it waits for a genuine round
+boundary — up to three and a half minutes — to check that everyone crosses onto the
+same new board while words are in flight. That is the one path the rest of the
+suite cannot reach. `npm run typecheck` covers tests as
 well as app code. `npm run analyze` prints solved boards with their candidate
 definitions, which is the fastest way to see the effect of changing the frequency
 band.

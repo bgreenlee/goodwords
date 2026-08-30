@@ -46,6 +46,7 @@ export class GameRoom {
   private env: Env;
   private players = new Map<WebSocket, Player>();
   private live: Live | null = null;
+  private rolling: { round: number; ready: Promise<Live> } | null = null;
   private trie: Trie | null = null;
   private loading: Promise<Trie> | null = null;
   private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -127,16 +128,33 @@ export class GameRoom {
 
   private async current(): Promise<Live> {
     const { round } = roundAt(Date.now());
-    if (!this.live || this.live.round !== round) {
-      this.live = await this.startRound(round);
-      for (const player of this.players.values()) {
-        player.score = 0;
-        player.words.clear();
-        player.rejected = 0;
+    if (this.live?.round !== round) {
+      // Roll once per round, however many callers arrive together. In practice the
+      // object's input gate and a cached dictionary make `startRound` effectively
+      // synchronous after the first round, so nothing interleaves — but a board
+      // being dealt exactly once should not rest on that.
+      if (this.rolling?.round !== round) {
+        const ready = this.startRound(round).then(
+          (live) => {
+            this.live = live;
+            for (const player of this.players.values()) {
+              player.score = 0;
+              player.words.clear();
+              player.rejected = 0;
+            }
+            return live;
+          },
+          (err) => {
+            if (this.rolling?.round === round) this.rolling = null;
+            throw err;
+          },
+        );
+        this.rolling = { round, ready };
       }
+      await this.rolling.ready;
     }
     await this.armAlarm();
-    return this.live;
+    return this.live!;
   }
 
   /** Wake at the next round boundary so a new board goes out without a client asking. */

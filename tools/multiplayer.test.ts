@@ -134,3 +134,36 @@ test("a word the board cannot spell is refused by the server", async () => {
   expect(reply).toBe("not on this board");
   await page.close();
 }, 90_000);
+
+test("a client whose clock runs ahead waits for the deal instead of inventing a board", async () => {
+  await waitForPlayTime(40_000);
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  // A clock that has already reached the next round, before the server has dealt
+  // its board — the state every player passes through at every boundary.
+  await page.addInitScript(`(() => {
+    const real = Date.now;
+    let skew = 0;
+    Date.now = () => real() + skew;
+    window.__skew = (ms) => { skew = ms; };
+  })();`);
+  await page.goto(URL);
+  await page.waitForSelector('[data-room="live"]');
+  await page.waitForSelector(".tile");
+
+  const dealtBoard = await tilesOf(page);
+  await page.evaluate(() => (window as never as { __skew: (n: number) => void }).__skew(210_000));
+
+  // It must hold, not fall back to a board the round number implies: that board
+  // belongs to nobody, and every word typed on it would be refused by the server.
+  await page.waitForSelector(".board--waiting", { timeout: 5000 });
+  expect(await page.locator(".tile").count()).toBe(0);
+  expect(await page.locator(".entry__input").isDisabled()).toBe(true);
+  expect(await page.getAttribute("[data-room]", "data-room")).toBe("live");
+
+  // Once the clock is honest again the dealt board comes straight back.
+  await page.evaluate(() => (window as never as { __skew: (n: number) => void }).__skew(0));
+  await page.waitForSelector(".tile", { timeout: 5000 });
+  expect(await tilesOf(page)).toEqual(dealtBoard);
+
+  await page.close();
+}, 120_000);

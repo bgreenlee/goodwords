@@ -16,7 +16,8 @@
     "floor": "vitest run tools/floor.test.ts",
     "typecheck:worker": "tsc -p tsconfig.worker.json --noEmit",
     "dev:api": "wrangler dev --port 8787",
-    "preview:full": "npm run build && wrangler dev --port 8788"
+    "preview:full": "npm run build && wrangler dev --port 8788",
+    "test:boundary": "vitest run tools/boundary.test.ts"
   },
   "dependencies": {
     "react": "^19.1.0",

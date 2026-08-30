@@ -27,5 +27,7 @@ test("teachable floor across many boards", () => {
   console.log(
     `\n${N} boards — min ${counts[0]}, p1 ${pct(0.01)}, p10 ${pct(0.1)}, median ${pct(0.5)}, max ${counts[counts.length - 1]}`,
   );
-  console.log(`boards with fewer than ${TEACH_LIMIT} teachable words: ${short} (${((100 * short) / N).toFixed(2)}%)`);
+  console.log(
+    `boards with fewer than ${TEACH_LIMIT} teachable words: ${short} (${((100 * short) / N).toFixed(2)}%)`,
+  );
 });

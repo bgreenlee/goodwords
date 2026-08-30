@@ -93,6 +93,24 @@ beforeAll(async () => {
 
 afterAll(() => server?.kill());
 
+test("players arriving together are dealt one board, not one each", async () => {
+  // A cold room has no board yet. The connect path is serialised by the object's
+  // input gate, so this does not by itself exercise the roll race — see
+  // boundary.test.ts for that — but everyone joining must still see one board.
+  const crowd = Array.from({ length: 8 }, () => new Client());
+  await Promise.all(crowd.map((c) => c.open()));
+  crowd.forEach((c, i) => c.send({ t: "hello", name: `p${i}` }));
+
+  const dealt = await Promise.all(crowd.map((c) => c.next("board", 15_000)));
+  const boards = new Set(dealt.map((d) => d.board.join("")));
+  expect(boards.size, `${boards.size} different boards dealt to 8 players`).toBe(1);
+  expect(new Set(dealt.map((d) => d.round)).size).toBe(1);
+  // Every player gets a distinct identity.
+  expect(new Set(dealt.map((d) => d.you)).size).toBe(8);
+
+  for (const c of crowd) c.ws.close();
+}, 60_000);
+
 test("the room deals a board, scores real words, and rejects the rest", async () => {
   await waitForPlayTime();
   const a = new Client();

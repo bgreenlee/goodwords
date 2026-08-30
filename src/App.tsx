@@ -3,7 +3,7 @@ import { Board } from "./components/Board";
 import { GuessPanel } from "./components/GuessPanel";
 import { Leaderboard } from "./components/Leaderboard";
 import { VocabPanel } from "./components/VocabPanel";
-import { rollBoard, type Board as BoardCells } from "./game/dice";
+import { CELL_COUNT, rollBoard, type Board as BoardCells } from "./game/dice";
 import { loadDictionary, loadVocab, type GameData, type Vocab } from "./game/data";
 import { formatClock } from "./game/schedule";
 import { scoreRound, type RoundResults } from "./game/round";
@@ -15,6 +15,9 @@ import { useRoom } from "./useRoom";
 import { useRound } from "./useRound";
 
 type Round = { round: number; key: string; board: BoardCells; solution: Set<string> };
+
+const BLANK_BOARD: BoardCells = Array(CELL_COUNT).fill("");
+const NO_WORDS: Set<string> = new Set();
 
 export default function App() {
   const [data, setData] = useState<GameData | null>(null);
@@ -46,19 +49,29 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
 
   // Live games use the board the server dealt, which nobody can precompute. Solo,
   // the board comes from the round number so the game still works offline.
-  const dealt = room.round === round ? room.board : null;
-  const key = dealt ? dealt.join("") : `solo:${round}`;
-  const cache = useRef<Round | null>(null);
-  if (!cache.current || cache.current.key !== key) {
-    const board = dealt ?? rollBoard(round);
-    cache.current = { round, key, board, solution: solveBoard(board, data.trie) };
-  }
-  const { board, solution } = cache.current;
+  //
+  // Never fall back to the solo board while connected. Our clock reaches the next
+  // round slightly before the server's board arrives, and playing the clock-derived
+  // board in that gap means playing a board no other player has, on which every
+  // word would be refused. Wait for the deal instead.
+  const dealt = room.status === "live" && room.round === round ? room.board : null;
+  const key = dealt ? `dealt:${round}` : room.status === "solo" ? `solo:${round}` : null;
 
-  // Clear the previous round's play when the clock rolls over.
-  const [seenRound, setSeenRound] = useState(round);
-  if (seenRound !== round) {
-    setSeenRound(round);
+  const cache = useRef<Round | null>(null);
+  if (key !== null && cache.current?.key !== key) {
+    const rolled = dealt ?? rollBoard(round);
+    cache.current = { round, key, board: rolled, solution: solveBoard(rolled, data.trie) };
+  }
+  const board = cache.current?.board ?? BLANK_BOARD;
+  const solution = cache.current?.solution ?? NO_WORDS;
+  // Between rounds we hold the last board on screen but must not accept words on it.
+  const waiting = key === null || cache.current?.key !== key;
+
+  // Clear play whenever the board changes — a new round, or a solo player being
+  // promoted into a live game part way through one.
+  const [seenKey, setSeenKey] = useState(key);
+  if (key !== null && seenKey !== key) {
+    setSeenKey(key);
     setGuesses([]);
     setEntry("");
     setFeedback(null);
@@ -66,13 +79,13 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     setTraced(null);
   }
 
-  // The break is the reveal: score the round that just finished. If the round
-  // changed in this same render the clock jumped — a sleeping laptop waking during
-  // some later break — and this board was never played, so there is nothing to score.
+  // The break is the reveal: score the board that was just played. If the board
+  // changed in this same render there is nothing to score — the clock jumped, as a
+  // sleeping laptop waking during a later break, or a new board has just arrived.
   const [seenPhase, setSeenPhase] = useState(phase);
   if (seenPhase !== phase) {
     setSeenPhase(phase);
-    if (phase === "break" && seenRound === round) {
+    if (phase === "break" && key !== null && seenKey === key) {
       setResults(scoreRound(round, solution, guesses));
     }
   }
@@ -140,8 +153,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   const score = guesses.reduce((n, w) => n + scoreWord(w), 0);
   // Until the room answers we do not know whose board this is. Showing the solo
   // board first would swap it under the player a moment later, on every load.
-  const joining = room.status === "connecting";
-  const playing = phase === "playing" && !joining;
+  const playing = phase === "playing" && !waiting;
 
   function submit(raw: string) {
     const word = raw.trim().toLowerCase();
@@ -200,8 +212,10 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
             </button>
           </div>
 
-          {joining ? (
-            <div className="board board--waiting">Finding a game…</div>
+          {waiting ? (
+            <div className="board board--waiting">
+              {room.status === "connecting" ? "Finding a game…" : "Dealing the next board…"}
+            </div>
           ) : (
             <Board cells={board} path={traced ?? (playing ? path : [])} rotation={rotation} />
           )}
