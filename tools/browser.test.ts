@@ -261,3 +261,68 @@ test("the clock keeps ticking", async () => {
   expect(seen.size, [...seen].join(",")).toBeGreaterThanOrEqual(4);
   await page.close();
 }, 30_000);
+
+test("an accepted word flashes on the board and then fades", async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await installClock(page, ROUND * ROUND_MS + 30_000);
+  await page.goto(URL);
+  await page.waitForSelector(".tile");
+
+  const words = readFileSync("public/data/words.txt", "utf8").split("\n");
+  const solution = [...solveBoard(rollBoard(ROUND), new Trie(words))];
+  const input = page.locator(".entry__input");
+
+  await input.fill(solution[0]);
+  await input.press("Enter");
+
+  // Lit straight away, so the path is actually seen.
+  await page.waitForFunction(() => document.querySelectorAll(".tile--lit").length > 0, undefined, {
+    timeout: 2000,
+  });
+  // Then gone, rather than sitting there competing with the next word.
+  await page.waitForFunction(
+    () => document.querySelectorAll(".tile--lit").length === 0,
+    undefined,
+    {
+      timeout: 4000,
+    },
+  );
+  // Nothing is left mid-fade: every tile is back to the resting colour.
+  await page.waitForFunction(
+    () => {
+      const tiles = [...document.querySelectorAll(".tile")];
+      const colours = new Set(tiles.map((t) => getComputedStyle(t).backgroundColor));
+      return colours.size === 1;
+    },
+    undefined,
+    { timeout: 4000 },
+  );
+
+  // A second word lights up again; the fade must not be a one-off.
+  await input.fill(solution[1]);
+  await input.press("Enter");
+  await page.waitForFunction(() => document.querySelectorAll(".tile--lit").length > 0, undefined, {
+    timeout: 2000,
+  });
+
+  await page.close();
+}, 45_000);
+
+test("tracing a missed word stays lit while pointed at", async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await installClock(page, ROUND * ROUND_MS + PLAY_MS - 3000);
+  await page.goto(URL);
+  await page.waitForSelector(".tile");
+  await page.waitForSelector(".clock--break", { timeout: 15_000 });
+  await page.waitForSelector(".vocab__item", { timeout: 15_000 });
+
+  await page.locator(".vocab__item").first().hover();
+  await page.waitForFunction(() => document.querySelectorAll(".tile--lit").length > 0, undefined, {
+    timeout: 5000,
+  });
+  // Well past the flash timeout: hovering is a held state, not a confirmation.
+  await page.waitForTimeout(1800);
+  expect(await page.locator(".tile--lit").count()).toBeGreaterThan(0);
+
+  await page.close();
+}, 45_000);

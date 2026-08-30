@@ -19,6 +19,9 @@ type Round = { round: number; key: string; board: BoardCells; solution: Set<stri
 const BLANK_BOARD: BoardCells = Array(CELL_COUNT).fill("");
 const NO_WORDS: Set<string> = new Set();
 
+/** How long an accepted word's path stays lit before fading back. */
+const HIGHLIGHT_MS = 700;
+
 export default function App() {
   const [data, setData] = useState<GameData | null>(null);
   const [vocab, setVocab] = useState<Vocab | null>(null);
@@ -149,6 +152,12 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  useEffect(() => {
+    if (path.length === 0) return;
+    const id = setTimeout(() => setPath([]), HIGHLIGHT_MS);
+    return () => clearTimeout(id);
+  }, [path]);
 
   const score = guesses.reduce((n, w) => n + scoreWord(w), 0);
   // Until the room answers we do not know whose board this is. Showing the solo

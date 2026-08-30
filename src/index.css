@@ -273,14 +273,20 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.01em;
   user-select: none;
+  /* The resting state owns the fade out; .tile--lit owns the flash in. A tile
+     transitions using the rules of the state it is moving to, so the highlight
+     arrives at once and leaves slowly. */
   transition:
-    background 0.18s ease,
-    color 0.18s ease;
+    background 500ms ease,
+    color 500ms ease;
 }
 
 .tile--lit {
   background: var(--accent);
   color: #fff;
+  transition:
+    background 90ms ease,
+    color 90ms ease;
 }
 
 /* ---- word entry ---- */
