@@ -256,6 +256,10 @@ body {
   display: grid;
   gap: 7px;
   transition: opacity 0.3s ease;
+  /* Letters size against the board, not the window. The same board is shown full
+     size in the game and half size in the history, and one viewport-based size
+     cannot suit both. */
+  container-type: inline-size;
 }
 
 .board--waiting {
@@ -273,7 +277,11 @@ body {
   place-items: center;
   background: var(--tile);
   border-radius: 8px;
-  font-size: clamp(20px, 4.1vw, 30px);
+  /* A 1.5 line box under aspect-ratio: 1 becomes a minimum *width*, which is what
+     pushed the small board over its column. */
+  line-height: 1;
+  min-width: 0;
+  font-size: clamp(12px, 7.8cqw, 30px);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.01em;

@@ -97,7 +97,12 @@ export function saveProfile(profile: Profile): void {
 
 export function loadGames(): PlayedGame[] {
   const games = read<PlayedGame[]>(GAMES_KEY, []);
-  return Array.isArray(games) ? games.slice(0, MAX_GAMES) : [];
+  if (!Array.isArray(games)) return [];
+  // Empty rounds are no longer filed, but a tab left open before that change will
+  // have collected a run of them. Drop them on the way past.
+  const played = games.filter((g) => Array.isArray(g?.words) && g.words.length > 0);
+  if (played.length !== games.length) write(GAMES_KEY, played.slice(0, MAX_GAMES));
+  return played.slice(0, MAX_GAMES);
 }
 
 /** Newest first, capped, one entry per round. */

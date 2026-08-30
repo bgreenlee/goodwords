@@ -196,3 +196,71 @@ test("a round you did not play is not kept as a game", async () => {
   expect(stored === null || stored === "[]").toBe(true);
   await page.close();
 }, 60_000);
+
+test("the board in a past game fits its column at any width", async () => {
+  const board = "IAELNORWPILRABOAEYVYASEET".split("");
+  board[18] = "QU"; // the widest tile, and the one that overflows first
+  const games = [
+    {
+      round: 9_000_003,
+      board,
+      words: ["sear", "roles", "barres"],
+      score: 6,
+      total: 469,
+      possible: 218,
+      taught: [
+        { lemma: "rictus", word: "rictus", partOfSpeech: "noun", gloss: "a gaping grimace" },
+      ],
+      at: Date.now() - 400_000,
+    },
+    // A round nobody played, from before those stopped being filed.
+    {
+      round: 9_000_002,
+      board,
+      words: [],
+      score: 0,
+      total: 322,
+      possible: 322,
+      taught: [],
+      at: Date.now() - 600_000,
+    },
+  ];
+
+  for (const width of [1440, 1100, 1000, 820]) {
+    const page = await browser.newPage({ viewport: { width, height: 950 } });
+    await seedReturningPlayer(page, "ada");
+    await page.addInitScript(
+      ([stored]) => localStorage.setItem("goodwords.games", stored),
+      [JSON.stringify(games)],
+    );
+    await page.goto(URL);
+    await page.waitForSelector(".tile");
+    await page.locator(".topbar__btn", { hasText: "Games" }).click();
+    await page.waitForSelector(".past__item");
+
+    // Rounds with no words are dropped on the way past, not just on the way in.
+    expect(await page.locator(".past__item").count(), `at ${width}px`).toBe(1);
+
+    const fit = await page.evaluate(() => {
+      const board = document.querySelector(".sheet .board")!;
+      const tiles = [...board.querySelectorAll(".tile")];
+      const b = board.getBoundingClientRect();
+      const w = document.querySelector(".past__cols")!.getBoundingClientRect();
+      // Below 900px the two stack, so overlap has to mean the boxes actually
+      // intersect, not merely that they share a horizontal range.
+      return {
+        spill: Math.round(Math.max(...tiles.map((t) => t.getBoundingClientRect().right)) - b.right),
+        overlaps:
+          b.right > w.left + 1 &&
+          b.left < w.right - 1 &&
+          b.bottom > w.top + 1 &&
+          b.top < w.bottom - 1,
+        clipped: tiles.some((t) => t.scrollWidth > t.clientWidth + 1),
+      };
+    });
+    expect(fit.spill, `tiles overflow the board at ${width}px`).toBeLessThanOrEqual(1);
+    expect(fit.overlaps, `board overlaps the words list at ${width}px`).toBe(false);
+    expect(fit.clipped, `a letter is clipped at ${width}px`).toBe(false);
+    await page.close();
+  }
+}, 90_000);
