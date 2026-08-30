@@ -53,8 +53,11 @@ jobs:
   deploy:
     name: Deploy
     needs: test
-    # Never on a pull request: a fork's PR must not reach the account secrets.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Never on a pull request: a fork's PR must not reach the account secrets. A
+    # manual run from main is allowed, as the way to redeploy without a commit.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
