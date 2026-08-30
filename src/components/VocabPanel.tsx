@@ -34,7 +34,7 @@ export function VocabPanel({ words, loading, learnedCount, onHover }: Props) {
               <li
                 key={w.lemma}
                 className={`vocab__item${onHover ? " vocab__item--traceable" : ""}`}
-                onMouseEnter={() => onHover?.(w.word)}
+                onPointerMove={() => onHover?.(w.word)}
               >
                 <div className="vocab__head">
                   <span className="vocab__word">{w.lemma}</span>

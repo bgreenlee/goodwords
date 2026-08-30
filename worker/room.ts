@@ -71,6 +71,8 @@ export class GameRoom {
   /** Restarting resets the counter, so ids carry something that does not repeat. */
   private readonly instance = Math.random().toString(36).slice(2, 8);
   private schemaReady = false;
+  private dailyCache: { round: number; top: DailyRow[] } | null = null;
+  private knownNames = new Map<string, string>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     this.ctx = ctx;
@@ -108,7 +110,11 @@ export class GameRoom {
     this.players.set(server, player);
 
     server.addEventListener("message", (event) => {
-      this.onMessage(server, player, event.data).catch(() => server.close(1011, "error"));
+      this.onMessage(server, player, event.data).catch((err) => {
+        // Log it and carry on. Tearing the socket down turns one bad message into
+        // a lost game, and the player can still see the board and keep playing.
+        console.error("could not handle a message", err);
+      });
     });
     const drop = () => {
       const leaving = this.players.get(server);
@@ -168,9 +174,16 @@ export class GameRoom {
     // A deploy restarts this object, and so does eviction. Rolling a fresh board
     // then would swap the board out from under everyone mid-round, so the round's
     // board is written down and reused if this round has already begun.
-    const saved = await this.ctx.storage.get<{ round: number; board: string[] }>(LIVE_KEY);
-    if (saved && saved.round === round && saved.board?.length === CELL_COUNT) {
-      return { round, board: saved.board };
+    // Storage can refuse — a quota, most likely. Losing the written-down board
+    // costs a re-roll if the object restarts mid-round; failing here would cost
+    // the game entirely, which is a far worse trade.
+    try {
+      const saved = await this.ctx.storage.get<{ round: number; board: string[] }>(LIVE_KEY);
+      if (saved && saved.round === round && saved.board?.length === CELL_COUNT) {
+        return { round, board: saved.board };
+      }
+    } catch (err) {
+      console.error("could not read the round in play", err);
     }
 
     const bytes = new Uint32Array(64);
@@ -184,7 +197,11 @@ export class GameRoom {
       return bytes[i++] / 4294967296;
     };
     const board = rollBoardWith(next);
-    await this.ctx.storage.put(LIVE_KEY, { round, board });
+    try {
+      await this.ctx.storage.put(LIVE_KEY, { round, board });
+    } catch (err) {
+      console.error("could not write down the round in play", err);
+    }
     return { round, board };
   }
 
@@ -224,9 +241,15 @@ export class GameRoom {
   /** Wake at the next round boundary so a new board goes out without a client asking. */
   private async armAlarm(): Promise<void> {
     if (this.players.size === 0) return;
-    const at = (Math.floor(Date.now() / ROUND_MS) + 1) * ROUND_MS;
-    const existing = await this.ctx.storage.getAlarm();
-    if (existing !== at) await this.ctx.storage.setAlarm(at);
+    try {
+      const at = (Math.floor(Date.now() / ROUND_MS) + 1) * ROUND_MS;
+      const existing = await this.ctx.storage.getAlarm();
+      if (existing !== at) await this.ctx.storage.setAlarm(at);
+    } catch (err) {
+      // Losing the alarm costs a prompt board at the boundary, not the game: the
+      // next message rolls the round anyway.
+      console.error("could not arm the round alarm", err);
+    }
   }
 
   async alarm(): Promise<void> {
@@ -240,7 +263,13 @@ export class GameRoom {
 
   private async sendBoard(ws: WebSocket): Promise<void> {
     this.sendBoardFor(ws, await this.current());
-    this.send(ws, { t: "daily", top: this.dailyTop(), since: Date.now() - DAY_MS });
+    // The day's standings are a nicety. Storage can refuse — a quota, a bad row —
+    // and when it does the player should still get a board and a game.
+    try {
+      this.send(ws, { t: "daily", top: this.dailyTop(), since: Date.now() - DAY_MS });
+    } catch (err) {
+      console.error("daily standings unavailable", err);
+    }
   }
 
   private sendBoardFor(ws: WebSocket, live: Live): void {
@@ -389,6 +418,19 @@ export class GameRoom {
   }
 
   private remember(player: Player): void {
+    // One write per connection becomes a lot of writes during a reconnect storm,
+    // and the row only changes when the name does.
+    if (this.knownNames.get(player.key) === player.name) return;
+    this.knownNames.set(player.key, player.name);
+    try {
+      this.rememberOrThrow(player);
+    } catch (err) {
+      // A display name is not worth a disconnection.
+      console.error("could not store a player name", err);
+    }
+  }
+
+  private rememberOrThrow(player: Player): void {
     this.schema().exec(
       `INSERT INTO players (id, name, seen) VALUES (?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET name = excluded.name, seen = excluded.seen`,
@@ -401,6 +443,19 @@ export class GameRoom {
   /** File a finished round. Replaces on conflict, so recording twice is harmless. */
   private record(player: Player, round: number): void {
     if (player.score <= 0) return;
+    // A finished round is worth keeping but never worth an exception on a path
+    // that also has to close a socket or start the next round.
+    try {
+      this.recordOrThrow(player, round);
+    } catch (err) {
+      console.error("could not file a finished round", err);
+    }
+  }
+
+  private recordOrThrow(player: Player, round: number): void {
+    // Something new is being filed, so the cached standings are out of date. The
+    // next reader pays for one scan; every reader after that is free.
+    this.dailyCache = null;
     this.remember(player);
     this.schema().exec(
       `INSERT OR REPLACE INTO results (round, player, score, words, at)
@@ -414,10 +469,15 @@ export class GameRoom {
   }
 
   private dailyTop(): DailyRow[] {
+    // The standings only move when a round ends, so scanning per connection was
+    // pure waste — and on the free tier it is waste with a daily budget attached.
+    const round = this.live?.round ?? 0;
+    if (this.dailyCache?.round === round) return this.dailyCache.top;
+
     const sql = this.schema();
     const since = Date.now() - DAY_MS;
     sql.exec(`DELETE FROM results WHERE at < ?`, since);
-    return sql
+    const top = sql
       .exec(
         `SELECT r.player AS id,
                 COALESCE(p.name, 'anonymous') AS name,
@@ -433,10 +493,18 @@ export class GameRoom {
         PLAYERS_SHOWN,
       )
       .toArray() as unknown as DailyRow[];
+    this.dailyCache = { round, top };
+    return top;
   }
 
   private broadcastDaily(): void {
-    const top = this.dailyTop();
+    let top: DailyRow[];
+    try {
+      top = this.dailyTop();
+    } catch (err) {
+      console.error("daily standings unavailable", err);
+      return;
+    }
     const since = Date.now() - DAY_MS;
     for (const ws of this.players.keys()) this.send(ws, { t: "daily", top, since });
   }

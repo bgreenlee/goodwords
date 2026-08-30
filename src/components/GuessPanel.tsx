@@ -20,7 +20,7 @@ export function GuessPanel({ guesses, score, onHover }: Props) {
       ) : (
         <ul className="guesses" onMouseLeave={() => onHover(null)}>
           {guesses.map((w) => (
-            <li key={w} onMouseEnter={() => onHover(w)}>
+            <li key={w} onPointerMove={() => onHover(w)}>
               <span className="guesses__word">{w}</span>
               <span className="guesses__pts">{scoreWord(w)}</span>
             </li>

@@ -325,3 +325,49 @@ test("tracing a missed word stays lit while pointed at", async () => {
 
   await page.close();
 }, 45_000);
+
+test("the word you just typed is the word the board lights up", async () => {
+  // Reported from real play: typed a word, got the credit, and an earlier word was
+  // highlighted. Guesses are prepended, so the rows slide down under a pointer that
+  // has not moved, and mouseenter fires on whichever old word arrives under it.
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await seedReturningPlayer(page);
+  await installClock(page, ROUND * ROUND_MS + 30_000);
+  await page.goto(URL);
+  await page.waitForSelector(".tile");
+
+  const words = readFileSync("public/data/words.txt", "utf8").split("\n");
+  const solution = [...solveBoard(rollBoard(ROUND), new Trie(words))];
+  // Different opening letters, so a wrong highlight cannot look like a right one.
+  const picks = solution.filter((w, i, a) => a.findIndex((x) => x[0] === w[0]) === i).slice(0, 6);
+  expect(picks.length).toBe(6);
+
+  const entry = page.locator(".entry__input");
+  for (const w of picks.slice(0, 5)) {
+    await entry.fill(w);
+    await entry.press("Enter");
+  }
+  await page.waitForFunction((n) => document.querySelectorAll(".guesses li").length === n, 5);
+
+  // Rest the pointer partway down the list, as you would after glancing at it.
+  await page.locator(".guesses li").nth(3).hover();
+  await page.waitForTimeout(250);
+
+  const fresh = picks[5];
+  await page.keyboard.type(fresh);
+  await page.keyboard.press("Enter");
+  await page.waitForFunction((n) => document.querySelectorAll(".guesses li").length === n, 6);
+  await page.waitForTimeout(200);
+
+  // Lit tiles are in board order, so compare letters rather than spelling. A Qu
+  // tile carries two of them.
+  const letters = (s: string) => s.toLowerCase().split("").sort().join("");
+  const lit = await page.$$eval(".tile--lit", (els) =>
+    els.map((e) => e.textContent!.trim()).join(""),
+  );
+  expect(letters(lit), `typed "${fresh}" but the board lit letters of "${lit}"`).toBe(
+    letters(fresh),
+  );
+
+  await page.close();
+}, 60_000);

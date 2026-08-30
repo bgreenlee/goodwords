@@ -137,7 +137,13 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   const taught = results && vocab ? teachableFrom(results.missed, vocab, data) : null;
   const tracingThisBoard = results?.round === round;
 
+  // The word the pointer is resting on, so a repeat of the same hover does not
+  // re-render and an accepted word can cancel a stale one.
+  const tracedWord = useRef<string | null>(null);
+
   function trace(word: string | null) {
+    if (tracedWord.current === word) return;
+    tracedWord.current = word;
     setTraced(word ? findPath(board, word) : null);
   }
 
@@ -270,6 +276,10 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
 
     setGuesses((prev) => [word, ...prev]);
     room.submit(word);
+    // The word just accepted is what the player is looking for. Any hover still
+    // standing is stale — the list is about to shift under the pointer anyway.
+    tracedWord.current = null;
+    setTraced(null);
     setPath(cells);
     setFeedback({ text: `${word} +${scoreWord(word)}`, ok: true });
   }
