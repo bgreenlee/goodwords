@@ -148,6 +148,9 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   useEffect(() => {
     if (!results || !taught || filed.current.has(results.round)) return;
     filed.current.add(results.round);
+    // A round nobody played is not a game. A tab left open would otherwise fill the
+    // history with empty boards and count vocabulary that nobody was there to read.
+    if (results.found.length === 0) return;
 
     setProfile((prev) => {
       const learned = new Set(prev.learned);

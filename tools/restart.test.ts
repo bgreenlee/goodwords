@@ -21,37 +21,57 @@ let browser: Browser;
 const trie = new Trie(readFileSync("public/data/words.txt", "utf8").split("\n"));
 
 function startWorker() {
+  // Its own process group: `npx` spawns node which spawns workerd, and signalling
+  // only the wrapper leaves the server running — which looks, from the test's side,
+  // exactly like a deploy that changed nothing.
   worker = spawn("npx", ["wrangler", "dev", "--port", String(PORT), "--local"], {
     stdio: "ignore",
+    detached: true,
   });
+}
+
+async function serving(): Promise<boolean> {
+  try {
+    return (await fetch(URL, { signal: AbortSignal.timeout(2000) })).ok;
+  } catch {
+    return false;
+  }
 }
 
 async function waitForWorker() {
   for (let i = 0; i < 160; i++) {
-    try {
-      if ((await fetch(URL)).ok) return;
-    } catch {
-      /* not up yet */
-    }
+    if (await serving()) return;
     await new Promise((r) => setTimeout(r, 500));
   }
   throw new Error("wrangler dev never came up");
 }
 
 async function stopWorker() {
-  if (!worker) return;
   const dying = worker;
   worker = null;
-  dying.kill("SIGTERM");
-  for (let i = 0; i < 40; i++) {
+  const pid = dying?.pid;
+  if (!pid) return;
+
+  const signal = (sig: NodeJS.Signals) => {
     try {
-      await fetch(URL);
+      process.kill(-pid, sig); // negative pid: the whole group
     } catch {
-      return; // refusing connections, so it is down
+      /* already gone */
     }
+  };
+
+  signal("SIGTERM");
+  for (let i = 0; i < 60; i++) {
+    if (!(await serving())) return;
     await new Promise((r) => setTimeout(r, 250));
   }
-  dying.kill("SIGKILL");
+  signal("SIGKILL");
+  for (let i = 0; i < 40; i++) {
+    if (!(await serving())) return;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  // Say so here, rather than let it surface as a puzzling timeout further down.
+  throw new Error(`worker on ${PORT} would not stop`);
 }
 
 beforeAll(async () => {

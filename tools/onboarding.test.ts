@@ -170,3 +170,29 @@ test("a finished round is kept and can be looked over later", async () => {
   expect(await page.locator(".past__item").count()).toBe(1);
   await page.close();
 }, 90_000);
+
+test("a round you did not play is not kept as a game", async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await seedReturningPlayer(page, "ada");
+  await installClock(page, ROUND * ROUND_MS + PLAY_MS - 4000);
+  await page.goto(URL);
+  await page.waitForSelector(".tile");
+
+  // Sit out the round entirely, the way an open tab does.
+  await page.waitForSelector(".clock--break", { timeout: 15_000 });
+  await page.waitForSelector(".vocab__item", { timeout: 15_000 });
+  await page.waitForTimeout(1000);
+
+  // The definitions still show — you just were not playing, so nothing is filed.
+  expect(await page.locator(".vocab__item").count()).toBeGreaterThan(0);
+  expect(await page.locator(".topbar__btn", { hasText: "Games" }).textContent()).toBe("Games");
+  expect(await page.locator(".topbar__stat").textContent()).toBe("0 words seen");
+
+  await page.locator(".topbar__btn", { hasText: "Games" }).click();
+  await page.waitForSelector(".sheet");
+  expect(await page.locator(".past__item").count()).toBe(0);
+
+  const stored = await page.evaluate(() => localStorage.getItem("goodwords.games"));
+  expect(stored === null || stored === "[]").toBe(true);
+  await page.close();
+}, 60_000);
