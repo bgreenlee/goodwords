@@ -42,8 +42,9 @@ jobs:
       - run: npx playwright install-deps chromium
         if: steps.playwright-cache.outputs.cache-hit == 'true'
 
+      # Covers the app and the worker; they have separate tsconfigs and the worker
+      # one is easy to forget locally.
       - run: npm run typecheck
-      - run: npm run typecheck:worker
 
       # The suite serves the built app and runs the worker, so build first.
       - run: npm run build

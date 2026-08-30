@@ -137,15 +137,6 @@ test("restarting the room mid-round keeps the board, the words and the score", a
   expect(await tiles()).toEqual(before);
   expect(await page.locator(".guesses li").count()).toBe(3);
 
-  // And the words find their way back onto the leaderboard.
-  await page.waitForFunction(
-    () => document.querySelectorAll(".ladder__row").length > 0,
-    undefined,
-    {
-      timeout: 30_000,
-    },
-  );
-  const score = Number(await page.locator(".ladder__score").first().textContent());
   // Ask the scoring rules rather than restating them: a copy of the table here
   // just goes stale the next time they change. The bonus word pays double, and
   // these are the longest words on the board, so it may well be among them.
@@ -154,6 +145,19 @@ test("restarting the room mid-round keeps the board, the words and the score", a
     (n, w) => n + scoreWord(w) * (w === bonus?.word ? BONUS_MULTIPLIER : 1),
     0,
   );
+
+  // The words find their way back onto the leaderboard, but deliberately one at a
+  // time — reading as soon as the first row appears catches the replay half done.
+  await page
+    .waitForFunction(
+      (want) => Number(document.querySelector(".ladder__score")?.textContent) === want,
+      expected,
+      { timeout: 30_000 },
+    )
+    .catch(() => {
+      /* fall through to the assertion, which reports the actual number */
+    });
+  const score = Number(await page.locator(".ladder__score").first().textContent());
   expect(score, `expected the round's ${expected} points back`).toBe(expected);
 
   await page.close();

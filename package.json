@@ -10,7 +10,7 @@
     "data": "python3 tools/build_data.py",
     "test": "vitest run --no-file-parallelism src/game tools/browser.test.ts tools/onboarding.test.ts tools/room.test.ts tools/multiplayer.test.ts tools/restart.test.ts",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
-    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.worker.json --noEmit",
     "deploy": "npm run build && wrangler deploy",
     "analyze": "vitest run tools/analyze.test.ts",
     "floor": "vitest run tools/floor.test.ts",

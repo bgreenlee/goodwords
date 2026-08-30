@@ -1,5 +1,5 @@
 import { findPath } from "./solver";
-import { TEACH_ZIPF_MAX, TEACH_ZIPF_MIN } from "./vocab";
+import { TEACH_ZIPF_MAX, TEACH_ZIPF_MIN } from "./band";
 import type { Board } from "./dice";
 
 /** [word, "partOfSpeech|gloss"], longest first, then rarest. */

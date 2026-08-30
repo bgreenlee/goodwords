@@ -1,13 +1,8 @@
+import { TEACH_ZIPF_MAX, TEACH_ZIPF_MIN } from "./band";
 import { scoreWord } from "./scoring";
 import type { GameData, Vocab } from "./data";
 
-/**
- * The band of word frequencies worth teaching. Above it, everybody already knows
- * the word; below it, the word is a Scrabble-list artifact nobody needs. This is
- * the main knob to turn after playing a few rounds.
- */
-export const TEACH_ZIPF_MIN = 1.8;
-export const TEACH_ZIPF_MAX = 4.2;
+export { TEACH_ZIPF_MAX, TEACH_ZIPF_MIN } from "./band";
 export const TEACH_LIMIT = 8;
 
 export type Teachable = {
