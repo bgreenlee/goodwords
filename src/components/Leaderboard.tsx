@@ -32,7 +32,9 @@ export function Leaderboard({ status, rows, daily, players, you, yourId, rank }:
             ? `${players} playing`
             : status === "connecting"
               ? "connecting…"
-              : "offline"}
+              : status === "reconnecting"
+                ? "reconnecting…"
+                : "offline"}
         </span>
       </header>
 
@@ -63,7 +65,9 @@ export function Leaderboard({ status, rows, daily, players, you, yourId, rank }:
         <p className="muted">
           {status === "connecting"
             ? "Finding the other players…"
-            : "You’re playing on your own — the board is yours alone until the connection comes back."}
+            : status === "reconnecting"
+              ? "Lost the room for a moment. Keep playing — this board still counts, and your words go back up as soon as it returns."
+              : "You’re playing on your own — the board is yours alone until the connection comes back."}
         </p>
       ) : showing === "day" ? (
         daily.length === 0 ? (

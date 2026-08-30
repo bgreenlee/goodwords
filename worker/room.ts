@@ -1,4 +1,4 @@
-import { rollBoardWith } from "../src/game/dice";
+import { CELL_COUNT, rollBoardWith } from "../src/game/dice";
 import { scoreWord } from "../src/game/scoring";
 import { findPath } from "../src/game/solver";
 import { WordIndex } from "../src/game/wordindex";
@@ -17,6 +17,8 @@ const MAX_WORDS_PER_SECOND = 10;
 const LEADERBOARD_INTERVAL_MS = 750;
 const MAX_NAME = 16;
 const MIN_WORD = 4;
+/** Where the round in play is written down, so a restart resumes it. */
+const LIVE_KEY = "live";
 
 type Player = {
   /** This connection. Changes on every reconnect. */
@@ -58,6 +60,8 @@ export class GameRoom {
   private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
   private lastBroadcast = 0;
   private nextId = 1;
+  /** Restarting resets the counter, so ids carry something that does not repeat. */
+  private readonly instance = Math.random().toString(36).slice(2, 8);
   private schemaReady = false;
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -73,7 +77,7 @@ export class GameRoom {
     const [client, server] = [pair[0], pair[1]];
     server.accept();
 
-    const connection = `p${this.nextId++}`;
+    const connection = `${this.instance}-${this.nextId++}`;
     const player: Player = {
       id: connection,
       key: connection,
@@ -142,6 +146,15 @@ export class GameRoom {
    */
   private async startRound(round: number): Promise<Live> {
     await this.dictionary();
+
+    // A deploy restarts this object, and so does eviction. Rolling a fresh board
+    // then would swap the board out from under everyone mid-round, so the round's
+    // board is written down and reused if this round has already begun.
+    const saved = await this.ctx.storage.get<{ round: number; board: string[] }>(LIVE_KEY);
+    if (saved && saved.round === round && saved.board?.length === CELL_COUNT) {
+      return { round, board: saved.board };
+    }
+
     const bytes = new Uint32Array(64);
     crypto.getRandomValues(bytes);
     let i = 0;
@@ -152,7 +165,9 @@ export class GameRoom {
       }
       return bytes[i++] / 4294967296;
     };
-    return { round, board: rollBoardWith(next) };
+    const board = rollBoardWith(next);
+    await this.ctx.storage.put(LIVE_KEY, { round, board });
+    return { round, board };
   }
 
   private async current(): Promise<Live> {

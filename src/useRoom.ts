@@ -2,8 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import type { Board as BoardCells } from "./game/dice";
 import type { DailyRow, LeaderRow, ServerMessage } from "./net/protocol";
 
-/** "solo" means the game is playable but nothing is being scored against others. */
-export type RoomStatus = "connecting" | "live" | "solo";
+/**
+ * "solo" means no room was ever reached, so the board comes from the clock.
+ * "reconnecting" means one was: keep playing that board, and expect to be scored
+ * again shortly. Dropping back to a solo board mid-round would change the board.
+ */
+export type RoomStatus = "connecting" | "live" | "reconnecting" | "solo";
 
 export type Room = {
   status: RoomStatus;
@@ -73,6 +77,8 @@ export function useRoom(name: string, id: string): Room {
       const giveUp = setTimeout(() => {
         setSnap((prev) => (prev.status === "connecting" ? { ...prev, status: "solo" } : prev));
       }, JOIN_TIMEOUT_MS);
+      // A reconnect that lands on the same round keeps its board; only a genuinely
+      // new board resets play, which the round check below decides.
 
       ws.addEventListener("open", () => {
         attempt = 0;
@@ -117,8 +123,13 @@ export function useRoom(name: string, id: string): Room {
         clearTimeout(giveUp);
         if (closed || socket.current !== ws) return;
         socket.current = null;
-        // Keep playing: the board and the dictionary are already here.
-        setSnap((prev) => ({ ...prev, status: "solo", board: null, round: null, top: [] }));
+        setSnap((prev) =>
+          prev.board
+            ? // Hold the dealt board. A deploy restarts the room and every socket
+              // with it; swapping the board would end everyone's round.
+              { ...prev, status: "reconnecting", top: [], players: 0, rank: 0 }
+            : { ...prev, status: "solo", board: null, round: null, top: [] },
+        );
         retry = setTimeout(connect, RETRY_MS[Math.min(attempt++, RETRY_MS.length - 1)]);
       };
       ws.addEventListener("close", dropped);

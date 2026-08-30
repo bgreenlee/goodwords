@@ -63,6 +63,22 @@ A finished round is filed when the next board is dealt, and also when a player
 disconnects, so closing the tab mid-round does not throw the score away. Both
 writes are keyed on round and player, so recording twice is harmless.
 
+## Deploying during a game
+
+Publishing restarts the durable object and closes every socket with it, which lands
+on whoever is playing. Three things make that survivable, and `npm test` includes a
+test that stops the worker mid-round and restarts it.
+
+The round's board is written down when it is rolled and reused if the round has
+already begun, so a restart deals the same board rather than a new one. Losing the
+socket does not drop that board either — the browser keeps playing it and shows
+"reconnecting" rather than falling back to a solo board, which would change the
+board mid-round. And on rejoining, the browser plays its words back to the room, so
+a leaderboard that restarted empty fills in again.
+
+The gap is the thirty seconds or so of missing leaderboard while the room comes
+back. Everything else carries on.
+
 ## Who is who
 
 There are no accounts, so a player is a name they typed. Two things follow.

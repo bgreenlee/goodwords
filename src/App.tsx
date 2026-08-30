@@ -79,8 +79,16 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   // round slightly before the server's board arrives, and playing the clock-derived
   // board in that gap means playing a board no other player has, on which every
   // word would be refused. Wait for the deal instead.
-  const dealt = room.status === "live" && room.round === round ? room.board : null;
-  const key = dealt ? `dealt:${round}` : room.status === "solo" ? `solo:${round}` : null;
+  const connected = room.status === "live" || room.status === "reconnecting";
+  const dealt = connected && room.round === round ? room.board : null;
+  // The board is part of the key, not just the round: if the room ever deals a
+  // different board for the same round, the screen must follow it rather than
+  // quietly keep playing the old one.
+  const key = dealt
+    ? `dealt:${round}:${dealt.join("")}`
+    : room.status === "solo"
+      ? `solo:${round}`
+      : null;
 
   const cache = useRef<Round | null>(null);
   if (key !== null && cache.current?.key !== key) {
@@ -109,9 +117,6 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     const resumable =
       saved && saved.key === key && boardsMatch(saved.board, board) ? saved.words : [];
     setGuesses(resumable);
-    // The room only knows this connection, which has scored nothing, so play the
-    // restored words back to it rather than leaving the leaderboard behind.
-    if (resumable.length > 0) resync.current = [...resumable].reverse();
     setEntry("");
     setFeedback(null);
     setPath([]);
@@ -214,10 +219,17 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     saveProgress(guesses.length > 0 ? { key, board, words: guesses } : null);
   }, [guesses, key, waiting, board]);
 
-  // Replay restored words at a human pace; sending them at once would trip the
-  // room's rate limit and be refused.
+  // Every new connection starts at zero on the room's side — a first join, a
+  // refresh, or the room being restarted by a deploy. Play our words back to it so
+  // the leaderboard catches up, spaced out so the rate limit does not refuse them.
+  const wasLive = useRef(false);
   useEffect(() => {
-    if (room.status !== "live" || resync.current.length === 0 || draining.current) return;
+    const live = room.status === "live";
+    const justJoined = live && !wasLive.current;
+    wasLive.current = live;
+    if (!justJoined || guesses.length === 0) return;
+    resync.current = [...guesses].reverse();
+    if (draining.current) return;
     draining.current = true;
     const step = () => {
       const word = resync.current.shift();
@@ -229,7 +241,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
       setTimeout(step, RESYNC_MS);
     };
     step();
-  }, [room.status, seenKey, room]);
+  }, [room.status, guesses, room]);
 
   useEffect(() => {
     if (path.length === 0) return;
