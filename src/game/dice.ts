@@ -39,12 +39,8 @@ export const CELL_COUNT = BOARD_SIZE * BOARD_SIZE;
 /** A board is 25 cell faces in row-major order; the Q die reads "QU". */
 export type Board = string[];
 
-/**
- * Roll the board for a given round. Pure: the same round always yields the same
- * board, which is what lets every client stay in sync without a server.
- */
-export function rollBoard(round: number): Board {
-  const next = rng(seedFrom(round));
+/** Shake the dice and read the faces, drawing randomness from `next`. */
+export function rollBoardWith(next: () => number): Board {
   const dice = [...BIG_BOGGLE_DICE];
   // Fisher-Yates: which die lands in which cell.
   for (let i = dice.length - 1; i > 0; i--) {
@@ -55,6 +51,17 @@ export function rollBoard(round: number): Board {
     const face = die[Math.floor(next() * die.length)];
     return face === "Q" ? "QU" : face;
   });
+}
+
+/**
+ * Roll the board for a given round. Pure: the same round always yields the same
+ * board, which is what lets solo players stay in sync without a server.
+ *
+ * Multiplayer cannot use this — a board derivable from the clock can be solved
+ * before it is played. The server rolls a secret board and pushes it instead.
+ */
+export function rollBoard(round: number): Board {
+  return rollBoardWith(rng(seedFrom(round)));
 }
 
 /** Cell indices adjacent to `i`, including diagonals. */

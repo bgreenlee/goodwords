@@ -8,18 +8,22 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "data": "python3 tools/build_data.py",
-    "test": "vitest run src/game tools/browser.test.ts",
+    "test": "vitest run --no-file-parallelism src/game tools/browser.test.ts tools/room.test.ts tools/multiplayer.test.ts",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "deploy": "npm run build && npx wrangler pages deploy dist --project-name goodwords",
     "analyze": "vitest run tools/analyze.test.ts",
-    "floor": "vitest run tools/floor.test.ts"
+    "floor": "vitest run tools/floor.test.ts",
+    "typecheck:worker": "tsc -p tsconfig.worker.json --noEmit",
+    "dev:api": "wrangler dev --port 8787",
+    "preview:full": "npm run build && wrangler dev --port 8788"
   },
   "dependencies": {
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260830.1",
     "@types/node": "^26.4.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",

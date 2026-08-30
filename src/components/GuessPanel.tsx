@@ -27,9 +27,6 @@ export function GuessPanel({ guesses, score, onHover }: Props) {
           ))}
         </ul>
       )}
-      <footer className="panel__note">
-        A live leaderboard goes here once the game is multiplayer.
-      </footer>
     </section>
   );
 }

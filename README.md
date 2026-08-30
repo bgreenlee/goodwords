@@ -3,32 +3,69 @@
 A 5×5 word game. Find as many words as you can in three minutes, then spend the
 thirty-second break reading the definitions of the good words you missed.
 
-V0 of [Tony's Good Words spec](https://tk.xyz/libraries/d2a9920a-6d24-4603-a6a7-d425db609e1f/notes/271ebdcc-3085-4494-8f65-a7444fe1c425),
-single-player: the game, your guesses, and the definitions column.
+An implementation of [Tony's Good Words spec](https://tk.xyz/libraries/d2a9920a-6d24-4603-a6a7-d425db609e1f/notes/271ebdcc-3085-4494-8f65-a7444fe1c425):
+the three columns, a live leaderboard, and definitions of the words you missed.
+Everyone plays the same board on the same schedule. No accounts — type a name and
+play. If there is no room to join, the game falls back to solo and still works.
 
-## Why there is no server
+## How it stays in sync
 
-Every client works out the current round from its own clock:
+Rounds are global and derived from the clock:
 
     round = floor(unixTimeMs / 210000)
 
-The board is a pure function of that round number, so everyone who loads the page
-in the same 210-second window sees the same board without anything coordinating
-them. The dictionary and the definitions are static files. Your history lives in
-`localStorage`.
+**Solo**, that is the whole story. The board is a pure function of the round
+number, so anyone loading the page in the same 210-second window sees the same
+board with nothing coordinating them. The dictionary and definitions are static
+files and history lives in `localStorage`, so the game works with no server at
+all — and still does, if the room cannot be reached.
 
-Every clock update re-reads `Date.now()` rather than counting elapsed ticks, so the
-countdown cannot drift. That matters because browsers make timers unreliable on
-purpose: intervals are throttled to once a second in a hidden tab, once a minute
-after a few minutes there, and stop entirely while a laptop sleeps. The clock is
-also re-read on `visibilitychange`, `focus` and `pageshow`, so it is correct the
-instant the tab is visible again rather than after the next throttled tick.
+**Multiplayer** cannot use that board, because a board derivable from the clock
+can be solved before it is played. So the server rolls a board from
+`crypto.getRandomValues` and pushes it when the round starts. It also keeps its
+own solution and re-checks every word: the browser validates too, for instant
+feedback with no round trip, but nothing a client claims is taken on trust.
 
-That makes V0 a static site with no database, which is why it deploys anywhere
-that serves files. When the leaderboard arrives, the natural home is a Cloudflare
-Durable Object — one per round, holding the scores, with a WebSocket per player.
-Nothing about the board generation has to change; `rollBoard` moves server-side so
-the board stops being predictable in advance.
+Every clock update re-reads `Date.now()` rather than counting elapsed ticks, so
+the countdown cannot drift. That matters because browsers make timers unreliable
+on purpose: intervals are throttled to once a second in a hidden tab, once a
+minute after a few minutes there, and stop entirely while a laptop sleeps. The
+clock is also re-read on `visibilitychange`, `focus` and `pageshow`, so it is
+correct the instant the tab is visible rather than after the next throttled tick.
+Multiplayer additionally corrects for this browser's clock being wrong, using the
+server timestamp on every board.
+
+## The room
+
+One Durable Object, `GameRoom`, holds every player.
+
+It is deliberately **not** one room per round. Rounds are globally synchronised,
+so every player is in the same round at the same moment — a room per round would
+buy no parallelism, and would make every client reconnect simultaneously on each
+boundary. Instead one long-lived room pushes a new board each round, driven by an
+alarm set to the next boundary.
+
+The room keeps its state in memory. There is exactly one active room, so it costs
+a few dollars a month to leave running, and hibernation would mean rebuilding
+that state from storage on every message for no benefit.
+
+To grow past what one object can broadcast, shard players across several rooms and
+add a per-round aggregator that merges their top scores. Nothing in the protocol
+has to change. The broadcast is already coalesced to about one leaderboard a
+second rather than one per word found, which is the thing that would bite first.
+
+No database. Live scores are worthless thirty seconds later, so they never leave
+memory. Storage becomes necessary at the point where something outlives the round
+— all-time stats, head-to-head records, "your vocabulary size" — and that is the
+same point where Medium accounts arrive.
+
+### Not trusting the client
+
+- the server checks each word against its own solve of its own board
+- guesses are rate limited to 10 a second, far above typing speed, so pasting a
+  solver's output is refused rather than scored
+- rejected guesses are counted per player, which is what an accuracy score and
+  shadowbanning would be built from
 
 ## Running it
 
@@ -37,7 +74,15 @@ the board stops being predictable in advance.
     ./tools/fetch-sources.sh      # downloads ENABLE + WordNet into data/
     pip install wordfreq
     npm run data                  # compiles them into public/data/
-    npm run dev
+
+    npm run preview:full          # app + room together, the whole game
+
+`npm run preview:full` builds and serves everything from the worker, which is how
+it runs in production. For a fast edit loop instead, run `npm run dev` and
+`npm run dev:api` side by side; Vite proxies `/api` to the worker.
+
+Without a room the game still plays solo, so `npm run dev` alone is fine for
+anything that is not multiplayer.
 
 `npm test` runs the engine tests plus Playwright tests that play a real round in a
 browser and simulate a laptop waking mid-break. `npm run typecheck` covers tests as
@@ -52,10 +97,19 @@ happily keep passing on stale artifacts.
 
 ## Deploying
 
-    npm run deploy    # wrangler pages deploy dist --project-name goodwords
+    npx wrangler login
+    npm run deploy
 
-Any static host works. The build is `dist/`, about 65 KB of JavaScript plus 1.8 MB
-of game data that compresses to roughly 1.2 MB over the wire.
+That publishes the worker, the Durable Object and the static build together, and
+gives you a `goodwords.<subdomain>.workers.dev` URL.
+
+To serve `goodwords.fun`, add the domain as a zone in the same Cloudflare account,
+then uncomment the `routes` block in `wrangler.jsonc` and deploy again. Deploying
+with those routes set before the zone exists will fail, which is why they start
+commented out.
+
+The build is about 66 KB of JavaScript plus 1.8 MB of game data that compresses to
+roughly 1.2 MB over the wire.
 
 ## The rules
 
@@ -108,8 +162,11 @@ rounds. It is the one number most worth arguing about.
       trie.ts       flat typed-array trie over the dictionary
       solver.ts     full board solve, and pathfinding for one word
       vocab.ts      which missed words are worth teaching
+    src/net/      the wire format, shared by browser and worker
+    src/useRoom.ts  the connection: joins, retries, falls back to solo
     src/components/ the three columns
-    tools/        data pipeline (Python) and the browser test
+    worker/       the Cloudflare worker and the GameRoom durable object
+    tools/        data pipeline (Python) and the integration tests
 
 ## Data
 
@@ -122,7 +179,9 @@ used under its permissive licence and credited in the footer.
 
 Frequencies: [wordfreq](https://github.com/rspeer/wordfreq), build-time only.
 
-## What V0 leaves out
+## What is still missing
 
-No accounts, no leaderboard, no multiplayer, no sharing — all V2 in the spec. The
-guesses column has a marked slot where the live leaderboard goes.
+No accounts, no history beyond this browser, no sharing, no vocabulary size across
+Medium products — all V2 in the spec. Names are self-declared and a player is
+whoever is holding the socket, so there is nothing to impersonate yet and nothing
+to protect.

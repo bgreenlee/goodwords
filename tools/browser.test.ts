@@ -61,6 +61,9 @@ test("plays a round in a real browser", async () => {
   await page.goto(URL);
   await page.waitForSelector(".tile");
 
+  // With no room to join, the game falls back to the clock-derived board and says so.
+  expect(await page.getAttribute("[data-room]", "data-room")).toBe("solo");
+
   // The rendered board must match what the same round produces here.
   const rendered = await page.$$eval(".tile", (els) => els.map((e) => e.textContent!.trim()));
   expect(rendered).toEqual(rollBoard(ROUND));

@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "goodwords",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-08-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+
+  // The built front end. The worker serves it for every path except /api/play.
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  // One long-lived room. See worker/room.ts for why it is not one room per round.
+  "durable_objects": {
+    "bindings": [{ "name": "ROOM", "class_name": "GameRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }]
+
+  // Once goodwords.fun is a zone in this Cloudflare account, uncomment to serve it
+  // from the apex. Deploying with this set before the zone exists will fail.
+  // "routes": [
+  //   { "pattern": "goodwords.fun", "custom_domain": true },
+  //   { "pattern": "www.goodwords.fun", "custom_domain": true }
+  // ]
+}

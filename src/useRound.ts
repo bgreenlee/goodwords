@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { roundAt, type RoundState } from "./game/schedule";
 
 /**
@@ -11,16 +11,23 @@ import { roundAt, type RoundState } from "./game/schedule";
  * The animation frame is paused in those cases too, so the clock is also re-read
  * whenever the page is shown or refocused, making it correct the instant it is
  * visible again.
+ *
+ * `offsetMs` corrects for this browser's clock being wrong relative to the server,
+ * which matters once other players are racing the same countdown.
  */
-export function useRound(): RoundState {
-  const [state, setState] = useState(() => roundAt(Date.now()));
+export function useRound(offsetMs = 0): RoundState {
+  const [state, setState] = useState(() => roundAt(Date.now() + offsetMs));
+
+  // Read through a ref so a change in skew is picked up without restarting the loop.
+  const offset = useRef(offsetMs);
+  offset.current = offsetMs;
 
   useEffect(() => {
     let frame = 0;
 
     const sync = () =>
       setState((prev) => {
-        const next = roundAt(Date.now());
+        const next = roundAt(Date.now() + offset.current);
         // Only re-render when something on screen actually changes: the clock is
         // shown to the second, so five updates a second would be four too many.
         const same =

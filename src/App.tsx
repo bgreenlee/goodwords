@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Board } from "./components/Board";
 import { GuessPanel } from "./components/GuessPanel";
+import { Leaderboard } from "./components/Leaderboard";
 import { VocabPanel } from "./components/VocabPanel";
 import { rollBoard, type Board as BoardCells } from "./game/dice";
 import { loadDictionary, loadVocab, type GameData, type Vocab } from "./game/data";
@@ -10,9 +11,10 @@ import { scoreWord } from "./game/scoring";
 import { findPath, solveBoard } from "./game/solver";
 import { teachableFrom } from "./game/vocab";
 import { loadHistory, saveHistory, type History } from "./history";
+import { useRoom } from "./useRoom";
 import { useRound } from "./useRound";
 
-type Round = { round: number; board: BoardCells; solution: Set<string> };
+type Round = { round: number; key: string; board: BoardCells; solution: Set<string> };
 
 export default function App() {
   const [data, setData] = useState<GameData | null>(null);
@@ -30,7 +32,9 @@ export default function App() {
 }
 
 function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
-  const { round, phase, remainingMs } = useRound();
+  const [history, setHistory] = useState<History>(loadHistory);
+  const room = useRoom(history.name);
+  const { round, phase, remainingMs } = useRound(room.offsetMs);
   const [guesses, setGuesses] = useState<string[]>([]);
   const [entry, setEntry] = useState("");
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
@@ -38,15 +42,16 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   const [traced, setTraced] = useState<number[] | null>(null);
   const [rotation, setRotation] = useState(0);
   const [results, setResults] = useState<RoundResults | null>(null);
-  const [history, setHistory] = useState<History>(loadHistory);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // The board is a pure function of the round, so cache it rather than re-rolling
-  // on every clock tick.
+  // Live games use the board the server dealt, which nobody can precompute. Solo,
+  // the board comes from the round number so the game still works offline.
+  const dealt = room.round === round ? room.board : null;
+  const key = dealt ? dealt.join("") : `solo:${round}`;
   const cache = useRef<Round | null>(null);
-  if (!cache.current || cache.current.round !== round) {
-    const board = rollBoard(round);
-    cache.current = { round, board, solution: solveBoard(board, data.trie) };
+  if (!cache.current || cache.current.key !== key) {
+    const board = dealt ?? rollBoard(round);
+    cache.current = { round, key, board, solution: solveBoard(board, data.trie) };
   }
   const { board, solution } = cache.current;
 
@@ -133,7 +138,10 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   }, []);
 
   const score = guesses.reduce((n, w) => n + scoreWord(w), 0);
-  const playing = phase === "playing";
+  // Until the room answers we do not know whose board this is. Showing the solo
+  // board first would swap it under the player a moment later, on every load.
+  const joining = room.status === "connecting";
+  const playing = phase === "playing" && !joining;
 
   function submit(raw: string) {
     const word = raw.trim().toLowerCase();
@@ -147,6 +155,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     if (!cells) return setFeedback({ text: `${word} isn’t on this board`, ok: false });
 
     setGuesses((prev) => [word, ...prev]);
+    room.submit(word);
     setPath(cells);
     setFeedback({ text: `${word} +${scoreWord(word)}`, ok: true });
   }
@@ -191,7 +200,11 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
             </button>
           </div>
 
-          <Board cells={board} path={traced ?? (playing ? path : [])} rotation={rotation} />
+          {joining ? (
+            <div className="board board--waiting">Finding a game…</div>
+          ) : (
+            <Board cells={board} path={traced ?? (playing ? path : [])} rotation={rotation} />
+          )}
 
           <form
             className="entry"
@@ -226,7 +239,16 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
           )}
         </section>
 
-        <GuessPanel guesses={guesses} score={score} onHover={trace} />
+        <div className="stack">
+          <GuessPanel guesses={guesses} score={score} onHover={trace} />
+          <Leaderboard
+            status={room.status}
+            rows={room.top}
+            players={room.players}
+            you={room.you}
+            rank={room.rank}
+          />
+        </div>
         <VocabPanel
           words={taught}
           loading={results !== null && vocab === null}

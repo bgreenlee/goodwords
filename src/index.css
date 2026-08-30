@@ -253,6 +253,15 @@ body {
   transition: opacity 0.3s ease;
 }
 
+.board--waiting {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  background: var(--tile);
+  border-radius: 8px;
+  color: var(--ink-faint);
+}
+
 .tile {
   aspect-ratio: 1;
   display: grid;
@@ -340,6 +349,64 @@ body {
 
 .guesses__pts {
   color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.stack {
+  display: grid;
+  gap: 20px;
+  align-content: start;
+}
+
+/* ---- leaderboard ---- */
+
+.ladder {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: rank;
+}
+
+.ladder__row {
+  display: grid;
+  grid-template-columns: 22px 1fr auto auto;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ladder__row:last-child {
+  border-bottom: none;
+}
+
+.ladder__row--you {
+  background: var(--accent-soft);
+}
+
+.ladder__rank {
+  font-size: 12px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.ladder__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ladder__words {
+  font-size: 12px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.ladder__score {
+  min-width: 30px;
+  text-align: right;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
