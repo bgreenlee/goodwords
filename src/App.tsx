@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { BonusClue } from "./components/BonusClue";
-import { Board } from "./components/Board";
+import { Board, reachableFrom } from "./components/Board";
 import { GuessPanel } from "./components/GuessPanel";
 import { Leaderboard } from "./components/Leaderboard";
 import { VocabPanel } from "./components/VocabPanel";
@@ -78,6 +78,8 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   const [rotation, setRotation] = useState(0);
   /** Set when we are playing alone and know the bonus word ourselves. */
   const [soloHit, setSoloHit] = useState<string | null>(null);
+  /** Cells tapped so far. Empty means the word is being typed instead. */
+  const [selection, setSelection] = useState<number[]>([]);
   const [results, setResults] = useState<RoundResults | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   useKeepBoardVisible(inputRef);
@@ -132,6 +134,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     setPath([]);
     setTraced(null);
     setSoloHit(null);
+    setSelection([]);
   }
 
   // The break is the reveal: score the board that was just played. If the board
@@ -248,12 +251,15 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
       const field = inputRef.current;
       if (!field || field.disabled) return;
       if (/^[a-z]$/i.test(event.key)) {
-        event.preventDefault();
+        // Focus the box and let the browser deliver the character to it. Appending
+        // by hand as well means two writers: with quick typing the manual append
+        // can land after several native ones and the letters come out reordered.
+        setSelection([]);
         field.focus();
-        setEntry((prev) => prev + event.key.toLowerCase());
       } else if (event.key === "Backspace") {
         event.preventDefault();
-        field.focus();
+        // Backspace undoes the last tap when a word is being tapped out.
+        setSelection((prev) => (prev.length > 0 ? prev.slice(0, -1) : prev));
         setEntry((prev) => prev.slice(0, -1));
       } else if (event.key === "Enter") {
         field.focus();
@@ -308,9 +314,25 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   const revealed = playing ? null : (room.tally?.bonusWord ?? soloBonus?.word ?? null);
   const revealedPath = revealed ? findPath(board, revealed) : null;
 
+  // The word as tapped out, with a Qu tile counting for both its letters.
+  const tapped = selection.map((cell) => board[cell].toLowerCase()).join("");
+
+  function tapTile(cell: number) {
+    if (!playing) return;
+    setEntry("");
+    setSelection((prev) => {
+      // Tapping the last letter takes it back.
+      if (prev[prev.length - 1] === cell) return prev.slice(0, -1);
+      const reachable = reachableFrom(prev);
+      if (reachable !== null && !reachable.has(cell)) return prev;
+      return [...prev, cell];
+    });
+  }
+
   function submit(raw: string) {
     const word = raw.trim().toLowerCase();
     setEntry("");
+    setSelection([]);
     if (!word) return;
     if (word.length < 4) return setFeedback({ text: "Four letters minimum", ok: false });
     if (guesses.includes(word)) return setFeedback({ text: `Already found ${word}`, ok: false });
@@ -376,6 +398,8 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
               // Hovering a word still wins: it is what the pointer is asking for.
               path={traced ?? (playing ? path : (revealedPath ?? []))}
               rotation={rotation}
+              selection={playing ? selection : []}
+              onTile={playing ? tapTile : undefined}
             />
           )}
 
@@ -385,21 +409,39 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
             className="entry"
             onSubmit={(e) => {
               e.preventDefault();
-              submit(entry);
+              submit(tapped || entry);
             }}
           >
             <input
               ref={inputRef}
               className="entry__input"
-              value={entry}
+              // Tapping owns the box while a word is being tapped out, so the two
+              // ways of building a word never disagree about what it is.
+              readOnly={selection.length > 0}
+              value={tapped || entry}
               disabled={!playing}
               autoFocus={!isTouch}
               autoComplete="off"
               autoCapitalize="off"
               spellCheck={false}
-              placeholder={playing ? "type a word, press enter" : "next board starting…"}
+              placeholder={playing ? "tap the letters, or type" : "next board starting…"}
               onChange={(e) => setEntry(e.target.value.replace(/[^a-zA-Z]/g, ""))}
             />
+            {selection.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  className="entry__btn"
+                  aria-label="Undo the last letter"
+                  onClick={() => setSelection((prev) => prev.slice(0, -1))}
+                >
+                  ⌫
+                </button>
+                <button type="submit" className="entry__btn entry__btn--go">
+                  Enter
+                </button>
+              </>
+            )}
           </form>
 
           {feedback && playing ? (

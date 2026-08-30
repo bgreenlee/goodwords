@@ -4,7 +4,7 @@ import { chromium, type Browser } from "playwright";
 import { installClock, seedReturningPlayer } from "./pagesetup";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { rollBoard, rotatedOrder } from "../src/game/dice";
-import { solveBoard } from "../src/game/solver";
+import { findPath, solveBoard } from "../src/game/solver";
 import { Trie } from "../src/game/trie";
 import { PLAY_MS, ROUND_MS } from "../src/game/schedule";
 
@@ -378,6 +378,46 @@ test("the word you just typed is the word the board lights up", async () => {
   expect(letters(lit), `typed "${fresh}" but the board lit letters of "${lit}"`).toBe(
     letters(fresh),
   );
+
+  await page.close();
+}, 60_000);
+
+test("clicking the letters works on a desktop too, alongside typing", async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await seedReturningPlayer(page);
+  await installClock(page, ROUND * ROUND_MS + 30_000);
+  await page.goto(URL);
+  // Wait for the room to settle before clicking: the board is resized when it
+  // does, and a click aimed at the old layout lands on the wrong letter.
+  await page.waitForSelector('[data-room="solo"]');
+  await page.waitForSelector("button.tile");
+  await page.waitForTimeout(300);
+
+  const board = rollBoard(ROUND);
+  expect(await page.$$eval(".tile", (els) => els.map((e) => e.textContent!.trim()))).toEqual(board);
+  const words = readFileSync("public/data/words.txt", "utf8").split("\n");
+  const solution = [...solveBoard(board, new Trie(words))];
+  const target = solution.find((w) => w.length >= 5)!;
+  const cells = findPath(board, target)!;
+  const tile = (i: number) => page.locator(".tile").nth(i);
+
+  for (const cell of cells) await tile(cell).click();
+  expect(await page.locator(".entry__input").inputValue()).toBe(target);
+
+  // Enter submits a clicked word, the same as a typed one.
+  await page.keyboard.press("Enter");
+  await page.waitForFunction((n) => document.querySelectorAll(".guesses li").length === n, 1);
+  expect(await page.locator(".guesses__word").first().textContent()).toBe(target);
+
+  // Typing after clicking abandons the clicks rather than mixing the two.
+  const other = solution.find((w) => w !== target)!;
+  await tile(cells[0]).click();
+  expect(await page.locator(".tile--chosen").count()).toBe(1);
+  await page.keyboard.type(other);
+  expect(await page.locator(".tile--chosen").count()).toBe(0);
+  expect(await page.locator(".entry__input").inputValue()).toBe(other);
+  await page.keyboard.press("Enter");
+  await page.waitForFunction((n) => document.querySelectorAll(".guesses li").length === n, 2);
 
   await page.close();
 }, 60_000);

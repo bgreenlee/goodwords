@@ -129,7 +129,10 @@ body {
 
 @media (max-width: 940px) {
   .columns {
-    grid-template-columns: 1fr;
+    /* minmax(0, …) rather than 1fr: a bare 1fr cannot shrink below the widest
+       thing inside it, so the word box and its buttons pushed the whole column
+       past the edge of the screen. */
+    grid-template-columns: minmax(0, 1fr);
   }
 
   /* Stacked, the board and the word box have to share whatever the keyboard
@@ -305,6 +308,40 @@ body {
     color 1000ms ease;
 }
 
+/* Tiles are buttons once a word can be tapped out. */
+button.tile {
+  appearance: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+  color: var(--ink);
+}
+
+button.tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tile--chosen {
+  background: var(--accent);
+  color: #fff;
+  transition:
+    background 90ms ease,
+    color 90ms ease;
+}
+
+/* The letter just tapped, which another tap takes back. */
+.tile--last {
+  box-shadow: inset 0 0 0 3px var(--ink);
+}
+
+/* Cells the word cannot reach from here. Still legible, plainly not available. */
+.tile--dead {
+  opacity: 0.32;
+  cursor: default;
+}
+
 .tile--lit {
   background: var(--accent);
   color: #fff;
@@ -371,11 +408,14 @@ body {
 /* ---- word entry ---- */
 
 .entry {
+  display: flex;
+  gap: 8px;
   margin-top: 14px;
 }
 
 .entry__input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 11px 13px;
   font: inherit;
   font-size: 17px;
@@ -393,6 +433,30 @@ body {
 
 .entry__input:disabled {
   opacity: 0.55;
+}
+
+.entry__btn {
+  flex: none;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.entry__btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-faint);
+}
+
+.entry__btn--go {
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .feedback {

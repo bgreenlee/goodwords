@@ -10,6 +10,10 @@ import { spawn } from "node:child_process";
 import { webkit, type Browser } from "playwright";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { PLAY_MS, ROUND_MS } from "../src/game/schedule";
+import { readFileSync } from "node:fs";
+import { rollBoard } from "../src/game/dice";
+import { findPath, solveBoard } from "../src/game/solver";
+import { Trie } from "../src/game/trie";
 
 const PORT = 4225;
 const URL = `http://localhost:${PORT}/`;
@@ -96,3 +100,122 @@ for (const [name, width, height] of PHONES) {
     await page.close();
   }, 60_000);
 }
+
+test("a word can be tapped out without ever raising the keyboard", async () => {
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  await page.addInitScript(`(() => {
+    localStorage.setItem("goodwords.profile",
+      JSON.stringify({ id: "tap-test-0001", name: "ada", welcomed: true, learned: [] }));
+    const t = ${ROUND * ROUND_MS + PLAY_MS - 60_000}, real = Date.now, t0 = real();
+    Date.now = () => t + (real() - t0);
+  })();`);
+  await page.goto(URL);
+  await page.waitForSelector(".tile");
+
+  const board = rollBoard(ROUND);
+  const words = readFileSync("public/data/words.txt", "utf8").split("\n");
+  const target = [...solveBoard(board, new Trie(words))].find(
+    (w) => w.length >= 5 && w.length <= 7,
+  )!;
+  const cells = findPath(board, target)!;
+  expect(cells.length).toBeGreaterThan(3);
+
+  await page.waitForSelector("button.tile");
+  const tile = (i: number) => page.locator(".tile").nth(i);
+  for (const cell of cells) await tile(cell).tap();
+  expect(await page.locator(".entry__input").inputValue()).toBe(target);
+  expect(await page.locator(".tile--chosen").count()).toBe(cells.length);
+
+  await page.locator(".entry__btn--go").tap();
+  await page.waitForFunction((n) => document.querySelectorAll(".guesses li").length === n, 1);
+  expect(await page.locator(".guesses__word").first().textContent()).toBe(target);
+
+  // The whole point: no keyboard, so no lost screen space.
+  expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("INPUT");
+  // And the board is clear again for the next word.
+  expect(await page.locator(".tile--chosen").count()).toBe(0);
+  await page.close();
+}, 60_000);
+
+test("a word can only go to a touching letter, and taps can be taken back", async () => {
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  await page.addInitScript(`(() => {
+    localStorage.setItem("goodwords.profile",
+      JSON.stringify({ id: "tap-test-0002", name: "ada", welcomed: true, learned: [] }));
+    const t = ${ROUND * ROUND_MS + PLAY_MS - 60_000}, real = Date.now, t0 = real();
+    Date.now = () => t + (real() - t0);
+  })();`);
+  await page.goto(URL);
+  await page.waitForSelector("button.tile");
+  const tile = (i: number) => page.locator(".tile").nth(i);
+
+  // Cell 0 is a corner: three of its neighbours are reachable, the other 21 are not.
+  await tile(0).tap();
+  expect(await page.locator(".tile--dead").count()).toBe(21);
+
+  // Tapping across the board does nothing at all. It has to be forced, because
+  // the tile is properly aria-disabled and automation declines it on that basis —
+  // which is itself the behaviour assistive tech would see.
+  await tile(24).tap({ force: true });
+  expect(await page.locator(".tile--chosen").count()).toBe(1);
+
+  // A touching letter is taken.
+  await tile(6).tap();
+  expect(await page.locator(".tile--chosen").count()).toBe(2);
+
+  // Tapping the last letter takes it back; the undo button takes back the rest.
+  await tile(6).tap();
+  expect(await page.locator(".tile--chosen").count()).toBe(1);
+  await page.locator(".entry__btn").first().tap();
+  expect(await page.locator(".tile--chosen").count()).toBe(0);
+  expect(await page.locator(".entry__input").inputValue()).toBe("");
+  await page.close();
+}, 60_000);
+
+test("tapping never pushes the page sideways", async () => {
+  // The undo and enter buttons appear once a word is started, and a grid track of
+  // plain 1fr could not shrink below them, so the whole column ran off the screen.
+  for (const [width, height] of [
+    [320, 568],
+    [375, 667],
+    [390, 440],
+    [390, 844],
+  ] as const) {
+    const page = await browser.newPage({
+      viewport: { width, height },
+      isMobile: true,
+      hasTouch: true,
+    });
+    await page.addInitScript(`(() => {
+      localStorage.setItem("goodwords.profile",
+        JSON.stringify({ id: "overflow-test", name: "ada", welcomed: true, learned: [] }));
+      const t = ${ROUND * ROUND_MS + PLAY_MS - 60_000}, real = Date.now, t0 = real();
+      Date.now = () => t + (real() - t0);
+    })();`);
+    await page.goto(URL);
+    await page.waitForSelector("button.tile");
+
+    const sideways = () =>
+      page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(await sideways(), `${width}px before tapping`).toBeLessThanOrEqual(0);
+
+    for (const cell of [0, 1, 2, 6]) await page.locator(".tile").nth(cell).tap();
+    expect(await sideways(), `${width}px after tapping`).toBeLessThanOrEqual(0);
+    expect(
+      await page.locator(".entry__btn--go").evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return r.right <= window.innerWidth + 1 && r.left >= -1;
+      }),
+      `the enter button is off screen at ${width}px`,
+    ).toBe(true);
+    await page.close();
+  }
+}, 90_000);

@@ -365,8 +365,15 @@ A first visit explains the rules and asks for a name before the board appears â€
 it is the one thing you must supply, and it is what the leaderboard shows. **How
 to play** in the header brings the same panel back and lets you change it.
 
-Just type â€” the word box does not need to be clicked first, and keystrokes are
-routed to it from anywhere on the page. Enter submits. **Space turns the board** a
+Tap or click the letters to build a word, following squares that touch, and press
+Enter. Tapping the last letter again takes it back, and letters the word cannot
+reach from where it is are stood down so the only taps offered are legal ones. On a
+phone this means the game needs no keyboard at all, which is the difference between
+seeing the board and not.
+
+Typing still works and mixes freely: the word box does not need to be clicked
+first, keystrokes are routed to it from anywhere on the page, and typing a letter
+abandons a half-tapped word rather than muddling the two. Enter submits either. **Space turns the board** a
 quarter turn, the way you would turn the physical one to see new words; the cells
 move but the letters stay upright, and turning never changes which words are
 findable. During the break, pointing at a missed word traces where it was.
