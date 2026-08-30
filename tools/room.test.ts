@@ -1,3 +1,4 @@
+import { rmSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { solveBoard } from "../src/game/solver";
@@ -8,6 +9,8 @@ import { readFileSync } from "node:fs";
 import type { ServerMessage } from "../src/net/protocol";
 import { randomUUID } from "node:crypto";
 
+/** Durable object state for this suite alone, so runs cannot contaminate each other. */
+const STATE = ".wrangler/state-room";
 const PORT = 8790;
 const BASE = `http://127.0.0.1:${PORT}`;
 let server: ReturnType<typeof spawn>;
@@ -77,9 +80,14 @@ async function waitForPlayTime(minMs = 25_000) {
 }
 
 beforeAll(async () => {
-  server = spawn("npx", ["wrangler", "dev", "--port", String(PORT), "--local"], {
-    stdio: "ignore",
-  });
+  rmSync(STATE, { recursive: true, force: true });
+  server = spawn(
+    "npx",
+    ["wrangler", "dev", "--port", String(PORT), "--local", "--persist-to", STATE],
+    {
+      stdio: "ignore",
+    },
+  );
   for (let i = 0; i < 120; i++) {
     try {
       const r = await fetch(BASE);

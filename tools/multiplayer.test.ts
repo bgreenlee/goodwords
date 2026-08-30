@@ -1,3 +1,4 @@
+import { rmSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { chromium, type Browser, type Page } from "playwright";
@@ -8,6 +9,8 @@ import { roundAt } from "../src/game/schedule";
 import { solveBoard } from "../src/game/solver";
 import { Trie } from "../src/game/trie";
 
+/** Durable object state for this suite alone, so runs cannot contaminate each other. */
+const STATE = ".wrangler/state-multiplayer";
 const PORT = 8791;
 const URL = `http://127.0.0.1:${PORT}/`;
 const SHOTS = process.env.SHOT_DIR ?? "/tmp";
@@ -17,9 +20,14 @@ let browser: Browser;
 const trie = new Trie(readFileSync("public/data/words.txt", "utf8").split("\n"));
 
 beforeAll(async () => {
-  server = spawn("npx", ["wrangler", "dev", "--port", String(PORT), "--local"], {
-    stdio: "ignore",
-  });
+  rmSync(STATE, { recursive: true, force: true });
+  server = spawn(
+    "npx",
+    ["wrangler", "dev", "--port", String(PORT), "--local", "--persist-to", STATE],
+    {
+      stdio: "ignore",
+    },
+  );
   browser = await chromium.launch();
   for (let i = 0; i < 120; i++) {
     try {

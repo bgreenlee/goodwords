@@ -323,15 +323,18 @@ export class GameRoom {
     }));
     const rankOf = new Map(ranked.map((p, i) => [p.id, i + 1]));
     const players = this.players.size;
+
+    // Only rank and score differ between players, so the standings are serialised
+    // once and each frame finished by hand. Going through send() would re-encode
+    // the whole table for every socket, which is most of the work at scale.
+    // The shape has to match the "lb" case of ServerMessage; the room tests read it.
+    const shared = `{"t":"lb","round":${round},"players":${players},"top":${JSON.stringify(top)}`;
     for (const [ws, player] of this.players) {
-      this.send(ws, {
-        t: "lb",
-        round,
-        top,
-        players,
-        rank: rankOf.get(player.id) ?? 0,
-        score: player.score,
-      });
+      try {
+        ws.send(`${shared},"rank":${rankOf.get(player.id) ?? 0},"score":${player.score}}`);
+      } catch {
+        this.players.delete(ws);
+      }
     }
   }
 

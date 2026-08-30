@@ -52,7 +52,39 @@ that state from storage on every message for no benefit.
 To grow past what one object can broadcast, shard players across several rooms and
 add a per-round aggregator that merges their top scores. Nothing in the protocol
 has to change. The broadcast is already coalesced to about one leaderboard a
-second rather than one per word found, which is the thing that would bite first.
+second rather than one per word found, and the standings are serialised once per
+broadcast rather than once per socket — those two are what would bite first.
+
+## How many players
+
+`npm run loadtest` holds N sockets open and submits real words off the dealt board
+at a brisk human pace. Measured against a local worker, so treat the shape as the
+finding and the absolute numbers as indicative:
+
+    players   p50    p95    p99     dropped
+        50    8ms   13ms   14ms       none
+       200   14ms   25ms   27ms       none
+       500   35ms   55ms   57ms       none
+      1000   46ms   68ms   72ms       none
+      2000  103ms  170ms  187ms       none
+
+Round trip grows about linearly with the number of connected players, which is
+what a single room broadcasting to everyone should do. Nothing dropped, every word
+scored, and the leaderboard kept its cadence throughout.
+
+Latency here is *only* the leaderboard. A word is validated in the browser and
+appears at once; the room's reply changes nothing the player sees. So the ceiling
+is set by how stale a leaderboard may be, not by how the game feels — which is
+why a few hundred milliseconds is survivable.
+
+On that basis: comfortable to a couple of thousand, probably usable to around five
+with a visibly laggier leaderboard, and past that the sharding above is the answer.
+A durable object also caps at 32,768 sockets and 128 MB, neither of which was in
+reach at 2,000.
+
+Run it against a deployed worker with `LOAD_WS=wss://… LOAD_HTTP=https://… npm run
+loadtest`. Point it at a throwaway deployment, not the real one: it fills the day's
+standings with bots.
 
 A round's own scores never leave memory: they are worthless thirty seconds later.
 The rolling day is the one thing that outlives a round, and it lives in the

@@ -5,6 +5,7 @@
  * The board must not change, the words already found must stay, and the score must
  * find its way back onto the leaderboard.
  */
+import { rmSync } from "node:fs";
 import { spawn, type ChildProcess } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { chromium, type Browser } from "playwright";
@@ -14,6 +15,8 @@ import { solveBoard } from "../src/game/solver";
 import { Trie } from "../src/game/trie";
 import { seedReturningPlayer } from "./pagesetup";
 
+/** Durable object state for this suite alone, so runs cannot contaminate each other. */
+const STATE = ".wrangler/state-restart";
 const PORT = 8794;
 const URL = `http://127.0.0.1:${PORT}/`;
 let worker: ChildProcess | null = null;
@@ -24,10 +27,14 @@ function startWorker() {
   // Its own process group: `npx` spawns node which spawns workerd, and signalling
   // only the wrapper leaves the server running — which looks, from the test's side,
   // exactly like a deploy that changed nothing.
-  worker = spawn("npx", ["wrangler", "dev", "--port", String(PORT), "--local"], {
-    stdio: "ignore",
-    detached: true,
-  });
+  worker = spawn(
+    "npx",
+    ["wrangler", "dev", "--port", String(PORT), "--local", "--persist-to", STATE],
+    {
+      stdio: "ignore",
+      detached: true,
+    },
+  );
 }
 
 async function serving(): Promise<boolean> {
@@ -75,6 +82,7 @@ async function stopWorker() {
 }
 
 beforeAll(async () => {
+  rmSync(STATE, { recursive: true, force: true });
   browser = await chromium.launch();
   startWorker();
   await waitForWorker();
