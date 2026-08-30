@@ -11,18 +11,33 @@ import { useEffect, type RefObject } from "react";
 export function usePlaySpace(): void {
   useEffect(() => {
     const viewport = window.visualViewport;
+    // visualViewport scroll fires on every frame of a scroll on iOS, and writing a
+    // custom property on :root invalidates style for the whole document. Only
+    // write when the number has actually changed, and at most once a frame.
+    let published = -1;
+    let queued = 0;
     const publish = () => {
-      const height = viewport?.height ?? window.innerHeight;
-      document.documentElement.style.setProperty("--play-space", `${Math.round(height)}px`);
+      if (queued) return;
+      queued = requestAnimationFrame(() => {
+        queued = 0;
+        const height = Math.round(viewport?.height ?? window.innerHeight);
+        if (height === published) return;
+        published = height;
+        document.documentElement.style.setProperty("--play-space", `${height}px`);
+      });
     };
     publish();
     if (!viewport) {
       window.addEventListener("resize", publish);
-      return () => window.removeEventListener("resize", publish);
+      return () => {
+        if (queued) cancelAnimationFrame(queued);
+        window.removeEventListener("resize", publish);
+      };
     }
     viewport.addEventListener("resize", publish);
     viewport.addEventListener("scroll", publish);
     return () => {
+      if (queued) cancelAnimationFrame(queued);
       viewport.removeEventListener("resize", publish);
       viewport.removeEventListener("scroll", publish);
     };

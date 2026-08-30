@@ -8,7 +8,7 @@ import { CELL_COUNT, rollBoard, type Board as BoardCells } from "./game/dice";
 import { loadDictionary, loadVocab, type GameData, type Vocab } from "./game/data";
 import { formatClock } from "./game/schedule";
 import { scoreRound, type RoundResults } from "./game/round";
-import { bonusFromSolution } from "./game/bonus";
+import { bonusFromSolution, type BonusWord } from "./game/bonus";
 import { BONUS_MULTIPLIER, scoreWord } from "./game/scoring";
 import { findPath, solveBoard } from "./game/solver";
 import { teachableFrom } from "./game/vocab";
@@ -150,10 +150,18 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
 
   // The word the round is named for. Live, the room sends only the definition and
   // tells us the word when it is found; alone, we work it out ourselves.
-  const soloBonus =
-    room.status === "solo" && vocab && key !== null
-      ? bonusFromSolution(solution, vocab.defs, vocab.lemmaOf, data.zipf)
-      : null;
+  // Working this out walks the whole solution, which is hundreds of words. It only
+  // changes with the board, so it must not be redone on every tap and every tick
+  // of the clock.
+  const soloBonusCache = useRef<{ key: string; bonus: BonusWord | null } | null>(null);
+  const wantSoloBonus = room.status === "solo" && vocab !== null && key !== null;
+  if (wantSoloBonus && soloBonusCache.current?.key !== key) {
+    soloBonusCache.current = {
+      key: key!,
+      bonus: bonusFromSolution(solution, vocab!.defs, vocab!.lemmaOf, data.zipf),
+    };
+  }
+  const soloBonus = wantSoloBonus ? (soloBonusCache.current?.bonus ?? null) : null;
   const clue =
     room.bonus ??
     (soloBonus

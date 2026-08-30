@@ -157,6 +157,10 @@ test("a word can only go to a touching letter, and taps can be taken back", asyn
   await page.waitForSelector("button.tile");
   const tile = (i: number) => page.locator(".tile").nth(i);
 
+  // Without this Safari waits after each tap to see whether a zoom is coming,
+  // which reads as lag and eats the second of two quick taps.
+  expect(await tile(0).evaluate((el) => getComputedStyle(el).touchAction)).toBe("manipulation");
+
   // Cell 0 is a corner: three of its neighbours are reachable, the other 21 are not.
   await tile(0).tap();
   expect(await page.locator(".tile--dead").count()).toBe(21);
@@ -219,3 +223,36 @@ test("tapping never pushes the page sideways", async () => {
     await page.close();
   }
 }, 90_000);
+
+test("quick taps all land", async () => {
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  await page.addInitScript(`(() => {
+    localStorage.setItem("goodwords.profile",
+      JSON.stringify({ id: "rapid-test", name: "ada", welcomed: true, learned: [] }));
+    const t = ${ROUND * ROUND_MS + PLAY_MS - 60_000}, real = Date.now, t0 = real();
+    Date.now = () => t + (real() - t0);
+  })();`);
+  await page.goto(URL);
+  await page.waitForSelector("button.tile");
+
+  const board = rollBoard(ROUND);
+  const words = readFileSync("public/data/words.txt", "utf8").split("\n");
+  const target = [...solveBoard(board, new Trie(words))].find((w) => w.length >= 6)!;
+  const cells = findPath(board, target)!;
+
+  // Tap by coordinate without waiting between, the way a fast player does.
+  const points: Array<[number, number]> = [];
+  for (const cell of cells) {
+    const box = (await page.locator(".tile").nth(cell).boundingBox())!;
+    points.push([box.x + box.width / 2, box.y + box.height / 2]);
+  }
+  for (const [x, y] of points) await page.touchscreen.tap(x, y);
+  await page.waitForTimeout(250);
+
+  expect(await page.locator(".entry__input").inputValue(), "a tap went missing").toBe(target);
+  await page.close();
+}, 60_000);

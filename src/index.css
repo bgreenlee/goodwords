@@ -316,6 +316,11 @@ button.tile {
   cursor: pointer;
   padding: 0;
   color: var(--ink);
+  /* Safari waits after a tap to see whether a second one is coming, which would
+     be a zoom. That wait is felt as lag, and the second of two quick taps gets
+     eaten by it. Saying there is no double-tap gesture here removes both. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button.tile:focus-visible {
@@ -437,6 +442,8 @@ button.tile:focus-visible {
 
 .entry__btn {
   flex: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   padding: 0 14px;
   font: inherit;
   font-size: 16px;
