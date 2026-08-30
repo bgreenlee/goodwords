@@ -131,6 +131,17 @@ body {
   .columns {
     grid-template-columns: 1fr;
   }
+
+  /* Stacked, the board and the word box have to share whatever the keyboard
+     leaves. --play-space is the visible height; the rest of the game panel — the
+     clock, the clue, the box itself and the padding — comes to about 250px. */
+  .board,
+  .board--waiting {
+    /* Never below 170px: letters that cannot be read are worse than a short
+       scroll, and a very small phone with the keyboard up simply has no room. */
+    max-width: clamp(170px, calc(var(--play-space, 100vh) - 250px), 100%);
+    margin-inline: auto;
+  }
 }
 
 .panel {

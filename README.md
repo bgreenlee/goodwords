@@ -265,6 +265,10 @@ anything that is not multiplayer.
 real `wrangler dev`, and Playwright tests that play a round in a browser, put two
 browsers in the same game, and simulate a laptop waking mid-break.
 
+The mobile tests run in WebKit, the engine iOS uses, at the viewport sizes a
+keyboard leaves behind. There is no keyboard in a headless browser, so the
+viewport stands in for one.
+
 `npm run test:boundary` is kept separate because it waits for a genuine round
 boundary — up to three and a half minutes — to check that everyone crosses onto the
 same new board while words are in flight. That is the one path the rest of the
@@ -339,6 +343,21 @@ runs, since somebody may still find it, so it settles at the boundary and is sho
 in the break. It only applies when there is somebody to have missed it. The board uses the real 25-die Big Boggle set, so the letter mix plays the
 way the physical game does — uniform random letters give vowel-starved boards. The
 Q die is always played as Qu.
+
+## On a phone
+
+The keyboard does not resize the window on iOS. It shrinks the visual viewport and
+the browser then scrolls the focused input into view by its own reckoning, which
+put the board off the top of the screen and made the game unplayable.
+
+Two things fix it. The board sizes itself against `--play-space`, the height the
+visual viewport actually reports, so it shrinks when the keyboard is up rather than
+insisting on a size that cannot fit — with a floor, because letters too small to
+read are worse than a short scroll. And once it fits, the game panel is scrolled to
+the top of the viewport itself on focus, instead of leaving the browser to choose.
+
+The word box also does not take focus by itself on a touch device: it cannot raise
+a keyboard there anyway, and focusing scrolls the page.
 
 ## Playing
 

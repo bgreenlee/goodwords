@@ -26,6 +26,7 @@ import {
   type Profile,
 } from "./storage";
 import { useRoom } from "./useRoom";
+import { useKeepBoardVisible, usePlaySpace } from "./usePlaySpace";
 import { useRound } from "./useRound";
 
 type Round = { round: number; key: string; board: BoardCells; solution: Set<string> };
@@ -39,10 +40,14 @@ const HIGHLIGHT_MS = 700;
 const RESYNC_MS = 160;
 
 /** A stored round only resumes onto the board it was played on. */
+/** Touch devices raise a keyboard on focus, which is not something to do unasked. */
+const isTouch = typeof window !== "undefined" && window.matchMedia("(hover: none)").matches;
+
 const boardsMatch = (a: string[], b: string[]) =>
   a.length === b.length && a.every((cell, i) => cell === b[i]);
 
 export default function App() {
+  usePlaySpace();
   const [data, setData] = useState<GameData | null>(null);
   const [vocab, setVocab] = useState<Vocab | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +80,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   const [soloHit, setSoloHit] = useState<string | null>(null);
   const [results, setResults] = useState<RoundResults | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  useKeepBoardVisible(inputRef);
 
   // Live games use the board the server dealt, which nobody can precompute. Solo,
   // the board comes from the round number so the game still works offline.
@@ -387,7 +393,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
               className="entry__input"
               value={entry}
               disabled={!playing}
-              autoFocus
+              autoFocus={!isTouch}
               autoComplete="off"
               autoCapitalize="off"
               spellCheck={false}
