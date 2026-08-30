@@ -2,8 +2,20 @@
 
 export type LeaderRow = { id: string; name: string; score: number; words: number };
 
+/** A player's standing across every round they finished in the window. */
+export type DailyRow = {
+  id: string;
+  name: string;
+  total: number;
+  rounds: number;
+  best: number;
+};
+
 export type ClientMessage =
-  { t: "hello"; name: string } | { t: "word"; w: string } | { t: "name"; name: string };
+  /** `id` is this browser's own, so a day of rounds adds up to one player. */
+  | { t: "hello"; name: string; id?: string }
+  | { t: "word"; w: string }
+  | { t: "name"; name: string };
 
 export type ServerMessage =
   /** Sent on connect and again at the start of every round. */
@@ -22,6 +34,7 @@ export type ServerMessage =
   | { t: "ok"; w: string; points: number; score: number }
   | { t: "no"; w: string; reason: string }
   | { t: "board_ack"; round: number }
+  | { t: "daily"; top: DailyRow[]; since: number }
   | {
       t: "lb";
       round: number;
@@ -33,3 +46,4 @@ export type ServerMessage =
     };
 
 export const PLAYERS_SHOWN = 20;
+export const DAY_MS = 24 * 60 * 60 * 1000;

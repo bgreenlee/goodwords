@@ -169,3 +169,41 @@ test("a client whose clock runs ahead waits for the deal instead of inventing a 
 
   await page.close();
 }, 120_000);
+
+test("the day's standings keep a player who has already left", async () => {
+  await waitForPlayTime(40_000);
+  const ada = await join("ada");
+  const grace = await join("grace");
+
+  const board = await tilesOf(ada);
+  const solution = [...solveBoard(board, trie)].sort((a, b) => b.length - a.length);
+  await ada.locator(".entry__input").fill(solution[0]);
+  await ada.locator(".entry__input").press("Enter");
+  await grace.waitForFunction(
+    () => document.querySelectorAll(".ladder__row").length >= 1,
+    undefined,
+    {
+      timeout: 10_000,
+    },
+  );
+
+  // Ada closes the tab mid-round. Her score should survive her connection.
+  await ada.close();
+
+  const day = grace.locator(".tabs__tab", { hasText: "Last 24 hours" });
+  await day.click();
+  await grace.waitForFunction(
+    () => document.querySelectorAll(".ladder__row").length > 0,
+    undefined,
+    { timeout: 15_000 },
+  );
+  const names = await grace.$$eval(".ladder__name", (els) => els.map((e) => e.textContent!.trim()));
+  expect(names.join(" ")).toContain("ada");
+
+  // Switching back shows the round in progress, which is a different list.
+  await grace.locator(".tabs__tab", { hasText: "This round" }).click();
+  await grace.waitForTimeout(300);
+  expect(await grace.locator(".tabs__tab--on").textContent()).toBe("This round");
+
+  await grace.close();
+}, 120_000);

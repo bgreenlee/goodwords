@@ -54,10 +54,32 @@ add a per-round aggregator that merges their top scores. Nothing in the protocol
 has to change. The broadcast is already coalesced to about one leaderboard a
 second rather than one per word found, which is the thing that would bite first.
 
-No database. Live scores are worthless thirty seconds later, so they never leave
-memory. Storage becomes necessary at the point where something outlives the round
-— all-time stats, head-to-head records, "your vocabulary size" — and that is the
-same point where Medium accounts arrive.
+A round's own scores never leave memory: they are worthless thirty seconds later.
+The rolling day is the one thing that outlives a round, and it lives in the
+object's own SQLite — two small tables, no separate database. Rows older than
+twenty-four hours are deleted whenever the standings are read.
+
+A finished round is filed when the next board is dealt, and also when a player
+disconnects, so closing the tab mid-round does not throw the score away. Both
+writes are keyed on round and player, so recording twice is harmless.
+
+## Who is who
+
+There are no accounts, so a player is a name they typed. Two things follow.
+
+A browser makes itself an id and keeps it. That is what a day's rounds add up
+against, so a refresh, a reconnect, or a dropped connection does not split one
+player into several. The room only accepts an id that looks like one, and falls
+back to the connection itself when a client offers none.
+
+Nothing stops two people choosing the same name, and refusing a "taken" name would
+be a poor trade for a game you join by typing a word. So names stay as chosen and a
+short tag is added only where a list actually shows a clash — most of the time
+nobody sees one. Your own row is highlighted either way.
+
+Anyone determined enough could send someone else's id. There is nothing to gain
+and nothing to protect until scores mean something, which is where real accounts
+come in.
 
 The room does not build a trie. A trie exists to prune prefixes while solving a
 whole board, and its 26-way node table needs tens of megabytes; the room only ever
@@ -211,6 +233,7 @@ rounds. It is the one number most worth arguing about.
       solver.ts     full board solve, and pathfinding for one word
       vocab.ts      which missed words are worth teaching
     src/storage.ts  what the browser remembers: profile, past games, the round in play
+    src/names.ts    disambiguating two players who chose the same name
     src/net/      the wire format, shared by browser and worker
     src/useRoom.ts  the connection: joins, retries, falls back to solo
     src/components/ the three columns

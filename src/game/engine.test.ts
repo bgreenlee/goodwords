@@ -10,6 +10,7 @@ import {
 } from "./dice";
 import { roundAt, PLAY_MS, ROUND_MS } from "./schedule";
 import { scoreWord } from "./scoring";
+import { labelRows } from "../names";
 import { scoreRound } from "./round";
 import { findPath, solveBoard } from "./solver";
 import { Trie } from "./trie";
@@ -263,5 +264,38 @@ describe("word index", () => {
 
   test("rejects words the list does not contain", () => {
     for (const w of ["reoilx", "qwertyui", "boggle" + "z"]) expect(index.has(w)).toBe(false);
+  });
+});
+
+describe("duplicate names", () => {
+  test("a name shown once is left exactly as chosen", () => {
+    const labels = labelRows([
+      { id: "a", name: "ada" },
+      { id: "b", name: "grace" },
+    ]);
+    expect(labels.get("a")).toBe("ada");
+    expect(labels.get("b")).toBe("grace");
+  });
+
+  test("a clash is tagged, and the tags differ", () => {
+    const labels = labelRows([
+      { id: "a", name: "brad" },
+      { id: "b", name: "Brad" },
+      { id: "c", name: "ada" },
+    ]);
+    expect(labels.get("c")).toBe("ada");
+    expect(labels.get("a")).toMatch(/^brad #\w{1,2}$/);
+    expect(labels.get("b")).toMatch(/^Brad #\w{1,2}$/);
+    expect(labels.get("a")).not.toBe(labels.get("b"));
+  });
+
+  test("the tag is stable for an id, so it does not shuffle between rounds", () => {
+    const rows = [
+      { id: "player-one", name: "sam" },
+      { id: "player-two", name: "sam" },
+    ];
+    expect(labelRows(rows).get("player-one")).toBe(
+      labelRows([...rows].reverse()).get("player-one"),
+    );
   });
 });

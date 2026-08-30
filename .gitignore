@@ -5,3 +5,6 @@ dist/
 # public/data by `npm run data`. Too large to track.
 /data/
 __pycache__/
+
+# wrangler dev keeps local durable object state here
+.wrangler/

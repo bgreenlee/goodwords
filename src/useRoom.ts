@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Board as BoardCells } from "./game/dice";
-import type { LeaderRow, ServerMessage } from "./net/protocol";
+import type { DailyRow, LeaderRow, ServerMessage } from "./net/protocol";
 
 /** "solo" means the game is playable but nothing is being scored against others. */
 export type RoomStatus = "connecting" | "live" | "solo";
@@ -15,6 +15,8 @@ export type Room = {
   players: number;
   rank: number;
   you: string | null;
+  /** Standings across the last day, which only move when a round finishes. */
+  daily: DailyRow[];
   submit: (word: string) => void;
 };
 
@@ -29,6 +31,7 @@ const EMPTY: Snapshot = {
   players: 0,
   rank: 0,
   you: null,
+  daily: [],
 };
 
 // Back off on repeated failures, but keep trying: a player who started solo should
@@ -42,10 +45,12 @@ const RETRY_MS = [500, 1000, 2000, 5000, 10_000];
  */
 const JOIN_TIMEOUT_MS = 2500;
 
-export function useRoom(name: string): Room {
+export function useRoom(name: string, id: string): Room {
   const [snap, setSnap] = useState<Snapshot>(EMPTY);
   const socket = useRef<WebSocket | null>(null);
   const nameRef = useRef(name);
+  const idRef = useRef(id);
+  idRef.current = id;
 
   useEffect(() => {
     nameRef.current = name;
@@ -71,7 +76,7 @@ export function useRoom(name: string): Room {
 
       ws.addEventListener("open", () => {
         attempt = 0;
-        ws.send(JSON.stringify({ t: "hello", name: nameRef.current }));
+        ws.send(JSON.stringify({ t: "hello", name: nameRef.current, id: idRef.current }));
       });
 
       ws.addEventListener("message", (event) => {
@@ -97,6 +102,9 @@ export function useRoom(name: string): Room {
               top: msg.round === prev.round ? prev.top : [],
               rank: msg.round === prev.round ? prev.rank : 0,
             };
+          }
+          if (msg.t === "daily") {
+            return { ...prev, daily: msg.top };
           }
           if (msg.t === "lb") {
             return { ...prev, top: msg.top, players: msg.players, rank: msg.rank };

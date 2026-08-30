@@ -33,6 +33,8 @@ export type InProgress = {
 };
 
 export type Profile = {
+  /** This browser's own id, so a day of rounds adds up to one player. */
+  id: string;
   name: string;
   /** Whether the welcome has been shown. A name alone cannot say so. */
   welcomed: boolean;
@@ -46,7 +48,7 @@ const PROGRESS_KEY = "goodwords.progress";
 /** Enough to look back over a long sitting without crowding the quota. */
 export const MAX_GAMES = 60;
 
-const NO_PROFILE: Profile = { name: "", welcomed: false, learned: [] };
+const NO_PROFILE: Profile = { id: "", name: "", welcomed: false, learned: [] };
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -66,15 +68,27 @@ function write(key: string, value: unknown): void {
   }
 }
 
+function newId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
+
 export function loadProfile(): Profile {
   // The first build kept name and learned words under one key.
   const legacy = read<Partial<Profile> | null>("goodwords.v1", null);
   const saved = read<Partial<Profile>>(PROFILE_KEY, legacy ?? {});
-  return {
+  const profile: Profile = {
     ...NO_PROFILE,
     ...saved,
     learned: Array.isArray(saved.learned) ? saved.learned : [],
+    id: saved.id || newId(),
   };
+  // A player who arrived before this existed gets an id now, and keeps it.
+  if (profile.id !== saved.id) saveProfile(profile);
+  return profile;
 }
 
 export function saveProfile(profile: Profile): void {

@@ -6,6 +6,7 @@ import { scoreWord } from "../src/game/scoring";
 import { roundAt } from "../src/game/schedule";
 import { readFileSync } from "node:fs";
 import type { ServerMessage } from "../src/net/protocol";
+import { randomUUID } from "node:crypto";
 
 const PORT = 8790;
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -199,4 +200,66 @@ test("a flood of guesses is throttled rather than scored", async () => {
   }
   expect(throttled, `accepted ${accepted}, throttled ${throttled}`).toBeGreaterThan(0);
   c.ws.close();
+}, 90_000);
+
+test("a day's standings outlive the connection that earned them", async () => {
+  await waitForPlayTime(20_000);
+  // A fresh id each run: the object keeps its SQLite between runs, as it should.
+  const me = randomUUID();
+
+  const first = new Client();
+  await first.open();
+  first.send({ t: "hello", name: "ada", id: me });
+  const dealt = await first.next("board");
+  const solution = [...solveBoard(dealt.board, trie)];
+
+  const word = solution.reduce((a, b) => (scoreWord(b) > scoreWord(a) ? b : a));
+  first.send({ t: "word", w: word });
+  const ok = await first.next("ok");
+  expect(ok.score).toBe(scoreWord(word));
+
+  // Closing the tab must not throw the round away.
+  first.ws.close();
+  await new Promise((r) => setTimeout(r, 500));
+
+  const again = new Client();
+  await again.open();
+  again.send({ t: "hello", name: "ada", id: me });
+  await again.next("board");
+
+  const day = await again.next("daily");
+  const mine = day.top.find((row) => row.id === me);
+  expect(mine, `no entry for ${me} in ${JSON.stringify(day.top)}`).toBeDefined();
+  expect(mine!.name).toBe("ada");
+  expect(mine!.total).toBe(scoreWord(word));
+  expect(mine!.rounds).toBe(1);
+  expect(mine!.best).toBe(scoreWord(word));
+
+  // Standings are ordered by total, highest first.
+  const totals = day.top.map((r) => r.total);
+  expect([...totals].sort((a, b) => b - a)).toEqual(totals);
+  expect(day.since).toBeLessThan(Date.now());
+
+  again.ws.close();
+}, 90_000);
+
+test("a browser without an id still plays, and is not merged with anyone", async () => {
+  await waitForPlayTime(15_000);
+  const a = new Client();
+  const b = new Client();
+  await Promise.all([a.open(), b.open()]);
+  // No id offered: the room falls back to the connection, which is unique.
+  a.send({ t: "hello", name: "one" });
+  b.send({ t: "hello", name: "two" });
+  const [da, db] = await Promise.all([a.next("board"), b.next("board")]);
+  expect(da.you).not.toBe(db.you);
+
+  const solution = [...solveBoard(da.board, trie)];
+  a.send({ t: "word", w: solution[0] });
+  await a.next("ok");
+  const lb = await a.next("lb");
+  expect(lb.top.filter((r) => r.name === "one")).toHaveLength(1);
+
+  a.ws.close();
+  b.ws.close();
 }, 90_000);

@@ -61,7 +61,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   const [dialog, setDialog] = useState<"welcome" | "help" | "games" | null>(
     profile.welcomed ? null : "welcome",
   );
-  const room = useRoom(profile.name);
+  const room = useRoom(profile.name, profile.id);
   const { round, phase, remainingMs } = useRound(room.offsetMs);
   const [guesses, setGuesses] = useState<string[]>([]);
   const [entry, setEntry] = useState("");
@@ -333,8 +333,10 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
           <Leaderboard
             status={room.status}
             rows={room.top}
+            daily={room.daily}
             players={room.players}
             you={room.you}
+            yourId={profile.id}
             rank={room.rank}
           />
         </div>

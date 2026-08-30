@@ -4,8 +4,10 @@ import { findPath } from "../src/game/solver";
 import { WordIndex } from "../src/game/wordindex";
 import { PLAY_MS, ROUND_MS, roundAt } from "../src/game/schedule";
 import {
+  DAY_MS,
   PLAYERS_SHOWN,
   type ClientMessage,
+  type DailyRow,
   type LeaderRow,
   type ServerMessage,
 } from "../src/net/protocol";
@@ -17,7 +19,10 @@ const MAX_NAME = 16;
 const MIN_WORD = 4;
 
 type Player = {
+  /** This connection. Changes on every reconnect. */
   id: string;
+  /** This browser, if it offered one. Stable across reconnects and rounds. */
+  key: string;
   name: string;
   score: number;
   words: Set<string>;
@@ -53,6 +58,7 @@ export class GameRoom {
   private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
   private lastBroadcast = 0;
   private nextId = 1;
+  private schemaReady = false;
 
   constructor(ctx: DurableObjectState, env: Env) {
     this.ctx = ctx;
@@ -67,8 +73,10 @@ export class GameRoom {
     const [client, server] = [pair[0], pair[1]];
     server.accept();
 
+    const connection = `p${this.nextId++}`;
     const player: Player = {
-      id: `p${this.nextId++}`,
+      id: connection,
+      key: connection,
       name: "",
       score: 0,
       words: new Set(),
@@ -81,6 +89,8 @@ export class GameRoom {
       this.onMessage(server, player, event.data).catch(() => server.close(1011, "error"));
     });
     const drop = () => {
+      const leaving = this.players.get(server);
+      if (leaving && this.live) this.record(leaving, this.live.round);
       this.players.delete(server);
       this.scheduleLeaderboard();
     };
@@ -155,12 +165,14 @@ export class GameRoom {
       if (this.rolling?.round !== round) {
         const ready = this.startRound(round).then(
           (live) => {
-            this.live = live;
+            const finished = this.live;
             for (const player of this.players.values()) {
+              if (finished) this.record(player, finished.round);
               player.score = 0;
               player.words.clear();
               player.rejected = 0;
             }
+            this.live = live;
             return live;
           },
           (err) => {
@@ -189,10 +201,13 @@ export class GameRoom {
     const live = await this.current();
     for (const ws of this.players.keys()) this.sendBoardFor(ws, live);
     this.broadcastLeaderboard();
+    // The window only moves when a round ends, so this is the moment to resend it.
+    this.broadcastDaily();
   }
 
   private async sendBoard(ws: WebSocket): Promise<void> {
     this.sendBoardFor(ws, await this.current());
+    this.send(ws, { t: "daily", top: this.dailyTop(), since: Date.now() - DAY_MS });
   }
 
   private sendBoardFor(ws: WebSocket, live: Live): void {
@@ -225,6 +240,12 @@ export class GameRoom {
       player.name = String(msg.name ?? "")
         .slice(0, MAX_NAME)
         .trim();
+      // A browser that offers an id keeps one identity across reconnects and
+      // rounds; one that does not is only ever this connection.
+      if (msg.t === "hello" && typeof msg.id === "string" && /^[\w-]{8,64}$/.test(msg.id)) {
+        player.key = msg.id;
+      }
+      this.remember(player);
       this.scheduleLeaderboard();
       return;
     }
@@ -297,6 +318,85 @@ export class GameRoom {
         score: player.score,
       });
     }
+  }
+
+  /**
+   * A round's scores are worthless thirty seconds later, but a day of them is a
+   * leaderboard. This is the only state that outlives a round, and it lives in the
+   * object's own SQLite rather than a separate database.
+   */
+  private schema(): SqlStorage {
+    const sql = this.ctx.storage.sql;
+    if (!this.schemaReady) {
+      sql.exec(
+        `CREATE TABLE IF NOT EXISTS players (
+           id TEXT PRIMARY KEY, name TEXT NOT NULL, seen INTEGER NOT NULL
+         )`,
+      );
+      sql.exec(
+        `CREATE TABLE IF NOT EXISTS results (
+           round INTEGER NOT NULL, player TEXT NOT NULL, score INTEGER NOT NULL,
+           words INTEGER NOT NULL, at INTEGER NOT NULL,
+           PRIMARY KEY (round, player)
+         )`,
+      );
+      sql.exec(`CREATE INDEX IF NOT EXISTS results_at ON results (at)`);
+      this.schemaReady = true;
+    }
+    return sql;
+  }
+
+  private remember(player: Player): void {
+    this.schema().exec(
+      `INSERT INTO players (id, name, seen) VALUES (?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name, seen = excluded.seen`,
+      player.key,
+      player.name || "anonymous",
+      Date.now(),
+    );
+  }
+
+  /** File a finished round. Replaces on conflict, so recording twice is harmless. */
+  private record(player: Player, round: number): void {
+    if (player.score <= 0) return;
+    this.remember(player);
+    this.schema().exec(
+      `INSERT OR REPLACE INTO results (round, player, score, words, at)
+         VALUES (?, ?, ?, ?, ?)`,
+      round,
+      player.key,
+      player.score,
+      player.words.size,
+      Date.now(),
+    );
+  }
+
+  private dailyTop(): DailyRow[] {
+    const sql = this.schema();
+    const since = Date.now() - DAY_MS;
+    sql.exec(`DELETE FROM results WHERE at < ?`, since);
+    return sql
+      .exec(
+        `SELECT r.player AS id,
+                COALESCE(p.name, 'anonymous') AS name,
+                SUM(r.score) AS total,
+                COUNT(*) AS rounds,
+                MAX(r.score) AS best
+           FROM results r LEFT JOIN players p ON p.id = r.player
+          WHERE r.at >= ?
+          GROUP BY r.player
+          ORDER BY total DESC, best DESC
+          LIMIT ?`,
+        since,
+        PLAYERS_SHOWN,
+      )
+      .toArray() as unknown as DailyRow[];
+  }
+
+  private broadcastDaily(): void {
+    const top = this.dailyTop();
+    const since = Date.now() - DAY_MS;
+    for (const ws of this.players.keys()) this.send(ws, { t: "daily", top, since });
   }
 
   private send(ws: WebSocket, msg: ServerMessage): void {
