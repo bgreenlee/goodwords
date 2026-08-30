@@ -287,6 +287,10 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   // Until the room answers we do not know whose board this is. Showing the solo
   // board first would swap it under the player a moment later, on every load.
   const playing = phase === "playing" && !waiting;
+  // Once the round is over the bonus word is named, so show where it was — the
+  // one word everybody was looking for is worth seeing on the board.
+  const revealed = playing ? null : (room.tally?.bonusWord ?? soloBonus?.word ?? null);
+  const revealedPath = revealed ? findPath(board, revealed) : null;
 
   function submit(raw: string) {
     const word = raw.trim().toLowerCase();
@@ -351,14 +355,15 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
               {room.status === "connecting" ? "Finding a game…" : "Dealing the next board…"}
             </div>
           ) : (
-            <Board cells={board} path={traced ?? (playing ? path : [])} rotation={rotation} />
+            <Board
+              cells={board}
+              // Hovering a word still wins: it is what the pointer is asking for.
+              path={traced ?? (playing ? path : (revealedPath ?? []))}
+              rotation={rotation}
+            />
           )}
 
-          <BonusClue
-            clue={clue}
-            found={bonusFound}
-            reveal={playing ? null : (room.tally?.bonusWord ?? soloBonus?.word ?? null)}
-          />
+          <BonusClue clue={clue} found={bonusFound} reveal={revealed} />
 
           <form
             className="entry"

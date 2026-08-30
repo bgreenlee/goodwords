@@ -264,3 +264,34 @@ test("the board in a past game fits its column at any width", async () => {
     await page.close();
   }
 }, 90_000);
+
+test("when the round ends the bonus word is named and shown on the board", async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await seedReturningPlayer(page, "ada");
+  await installClock(page, ROUND * ROUND_MS + PLAY_MS - 4000);
+  await page.goto(URL);
+  await page.waitForSelector(".tile");
+
+  // During play the clue gives the definition and the length, never the word.
+  const clue = await page.locator(".clue").innerText();
+  expect(clue).toMatch(/BONUS WORD · \d+ LETTERS/i);
+  expect(await page.locator(".tile--lit").count()).toBe(0);
+
+  await page.waitForSelector(".clock--break", { timeout: 15_000 });
+  await page.waitForTimeout(600);
+
+  // Now it is named, and lit on the board so you can see where it was.
+  const named = await page.locator(".clue__word").textContent();
+  expect(named, "the bonus word should be revealed at the end").toBeTruthy();
+
+  const lit = await page.$$eval(".tile--lit", (els) =>
+    els
+      .map((e) => e.textContent!.trim().toLowerCase())
+      .sort()
+      .join(""),
+  );
+  const letters = named!.toLowerCase().split("").sort().join("");
+  expect(lit, `board lit "${lit}" for bonus word "${named}"`).toBe(letters);
+
+  await page.close();
+}, 60_000);

@@ -11,6 +11,7 @@ import {
 import { roundAt, PLAY_MS, ROUND_MS } from "./schedule";
 import { scoreWord } from "./scoring";
 import { pickBonus } from "./bonus";
+import { TEACH_ZIPF_MAX, TEACH_ZIPF_MIN } from "./vocab";
 import { labelRows } from "../names";
 import { scoreRound } from "./round";
 import { findPath, solveBoard } from "./solver";
@@ -125,6 +126,26 @@ describe("the bonus word", () => {
     string,
     string,
   ][];
+
+  test("every candidate is a word the game would teach", () => {
+    // The bonus word and the missed-words column have to agree on what is worth
+    // knowing, or the round can be named for a word the column will not explain.
+    const vocab = JSON.parse(readFileSync("public/data/vocab.json", "utf8")) as {
+      defs: Record<string, string>;
+      lemmaOf: Record<string, string>;
+    };
+    const freq = new Uint8Array(readFileSync("public/data/freq.bin"));
+    const rank = new Map(words.map((w, i) => [w, freq[i]]));
+    const z = (w: string) => (rank.get(w) ?? 0) / 32;
+
+    for (let i = 0; i < bonusList.length; i += 97) {
+      const [word] = bonusList[i];
+      const lemma = vocab.lemmaOf[word] ?? word;
+      expect(vocab.defs[lemma], `${word} has no definition`).toBeDefined();
+      expect(z(lemma), `${word} sits outside the band`).toBeGreaterThanOrEqual(TEACH_ZIPF_MIN);
+      expect(z(lemma), `${word} sits outside the band`).toBeLessThanOrEqual(TEACH_ZIPF_MAX);
+    }
+  });
 
   test("candidates are ordered longest first", () => {
     for (let i = 1; i < 500; i++) {

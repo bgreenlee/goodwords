@@ -111,12 +111,18 @@ test("plays a round in a real browser", async () => {
   expect(await page.locator(".entry__input").isDisabled()).toBe(true);
 
   // During the break the board stays readable, and pointing at a missed word
-  // traces where it was hiding.
+  // traces where it was hiding. The bonus word is lit by default now, so what
+  // matters is that hovering takes the board over.
   expect(await page.locator(".board").evaluate((el) => getComputedStyle(el).opacity)).toBe("1");
-  expect(await page.locator(".tile--lit").count()).toBe(0);
+  const litBefore = await page.$$eval(".tile--lit", (els) =>
+    els.map((e) => e.textContent!.trim()).join(""),
+  );
 
-  const boardWord = defs[0].via ?? defs[0].lemma;
-  await page.locator(".vocab__item").first().hover();
+  // The first missed word is normally the bonus word, which is already lit — so
+  // hover the second to prove a hover takes the board over.
+  const pick = defs.length > 1 ? 1 : 0;
+  const boardWord = defs[pick].via ?? defs[pick].lemma;
+  await page.locator(".vocab__item").nth(pick).hover();
   await page.waitForFunction(() => document.querySelectorAll(".tile--lit").length > 0, undefined, {
     timeout: 5000,
   });
@@ -124,6 +130,10 @@ test("plays a round in a real browser", async () => {
   // One tile per cell used; a Qu tile covers two letters, so the path can be shorter.
   expect(litCount, `tracing ${boardWord}`).toBeLessThanOrEqual(boardWord.length);
   expect(litCount).toBeGreaterThanOrEqual(boardWord.length - 1);
+  const litAfter = await page.$$eval(".tile--lit", (els) =>
+    els.map((e) => e.textContent!.trim()).join(""),
+  );
+  expect(litAfter, "hovering should take the board over from the bonus word").not.toBe(litBefore);
 
   // The tiles must actually change colour, not merely gain a class: the highlight
   // fades in, so assert the painted result rather than the markup.

@@ -27,8 +27,11 @@ BONUS_MIN_LENGTH = 6
 # Measured over 400 boards the longest findable word was 11 letters; 13 is headroom
 # and everything past it is dead weight in the room's memory.
 BONUS_MAX_LENGTH = 13
+# Must match TEACH_ZIPF_MIN/MAX in src/game/vocab.ts. A bonus word the game would
+# not bother teaching is a bonus word in the wrong game; engine.test.ts fails if
+# these drift apart.
 BONUS_ZIPF_MIN = 1.8
-BONUS_ZIPF_MAX = 4.4
+BONUS_ZIPF_MAX = 4.2
 
 
 def clean_gloss(g):

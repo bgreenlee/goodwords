@@ -1,4 +1,5 @@
 import { findPath } from "./solver";
+import { TEACH_ZIPF_MAX, TEACH_ZIPF_MIN } from "./vocab";
 import type { Board } from "./dice";
 
 /** [word, "partOfSpeech|gloss"], longest first, then rarest. */
@@ -40,7 +41,7 @@ export function bonusFromSolution(
   lemmaOf: Record<string, string>,
   zipf: (word: string) => number,
   minLength = 6,
-  band: [number, number] = [1.8, 4.4],
+  band: [number, number] = [TEACH_ZIPF_MIN, TEACH_ZIPF_MAX],
 ): BonusWord | null {
   let best: BonusWord | null = null;
   let bestZipf = Infinity;
