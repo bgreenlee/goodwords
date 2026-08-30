@@ -13,6 +13,7 @@ import { scoreWord } from "./scoring";
 import { scoreRound } from "./round";
 import { findPath, solveBoard } from "./solver";
 import { Trie } from "./trie";
+import { WordIndex } from "./wordindex";
 
 const words = readFileSync("public/data/words.txt", "utf8").split("\n");
 const trie = new Trie(words);
@@ -224,5 +225,41 @@ describe("rotation", () => {
         expect(after).toEqual(before);
       }
     }
+  });
+});
+
+describe("word index", () => {
+  const text = readFileSync("public/data/words.txt", "utf8");
+  const index = new WordIndex(text);
+
+  test("holds every word in the list", () => {
+    expect(index.size).toBe(words.length);
+    for (const w of words) expect(index.has(w), w).toBe(true);
+  });
+
+  test("agrees with the trie, which is what makes them interchangeable", () => {
+    const probes = [
+      "quiet",
+      "nematode",
+      "zzzz",
+      "quie",
+      "aardvark",
+      "a",
+      "",
+      "zymurgy",
+      words[0],
+      words.at(-1)!,
+      words[Math.floor(words.length / 2)],
+      // Neighbours of real words, which a sloppy binary search would confuse.
+      words[100] + "x",
+      words[100].slice(0, -1),
+      "zzzzzzzz",
+      "aaaa",
+    ];
+    for (const p of probes) expect(index.has(p), p).toBe(trie.has(p));
+  });
+
+  test("rejects words the list does not contain", () => {
+    for (const w of ["reoilx", "qwertyui", "boggle" + "z"]) expect(index.has(w)).toBe(false);
   });
 });

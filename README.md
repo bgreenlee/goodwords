@@ -59,6 +59,12 @@ memory. Storage becomes necessary at the point where something outlives the roun
 — all-time stats, head-to-head records, "your vocabulary size" — and that is the
 same point where Medium accounts arrive.
 
+The room does not build a trie. A trie exists to prune prefixes while solving a
+whole board, and its 26-way node table needs tens of megabytes; the room only ever
+asks whether one word is real, which is a binary search over the sorted list. That
+distinction is not academic — the first deploy failed on it, because 128 MB is
+plenty on a laptop and not enough in a worker.
+
 ### Not trusting the client
 
 - the server checks each word against its own solve of its own board
@@ -105,14 +111,16 @@ happily keep passing on stale artifacts.
 
     npx wrangler login
     npm run deploy
+    npm run smoke     # checks the deployment actually deals a board
 
-That publishes the worker, the Durable Object and the static build together, and
-gives you a `goodwords.<subdomain>.workers.dev` URL.
+`npm run deploy` publishes the worker, the Durable Object, the static build and
+both custom domains together. The domain is registered through Cloudflare, so it is
+already a zone in the account and needs no onboarding step.
 
-To serve `goodwords.fun`, add the domain as a zone in the same Cloudflare account,
-then uncomment the `routes` block in `wrangler.jsonc` and deploy again. Deploying
-with those routes set before the zone exists will fail, which is why they start
-commented out.
+`npm run smoke` is worth running every time. It is the only check that covers what
+a real deploy adds: the websocket reaching the durable object, and the object
+reading the word list out of the assets binding. A worker gets 128 MB, far less
+than a laptop, and that limit is invisible until you deploy.
 
 The build is about 66 KB of JavaScript plus 1.8 MB of game data that compresses to
 roughly 1.2 MB over the wire.
@@ -165,7 +173,8 @@ rounds. It is the one number most worth arguing about.
     src/game/     the engine, all pure and independently testable
       dice.ts       the Big Boggle die set and deterministic board rolls
       schedule.ts   clock to round number
-      trie.ts       flat typed-array trie over the dictionary
+      trie.ts       flat typed-array trie, for solving a whole board
+      wordindex.ts  binary search over the word list, for a single lookup
       solver.ts     full board solve, and pathfinding for one word
       vocab.ts      which missed words are worth teaching
     src/net/      the wire format, shared by browser and worker

@@ -16,6 +16,8 @@ export type ServerMessage =
       playEndsAt: number;
       roundEndsAt: number;
       you: string;
+      /** Seeds the player count so a fresh join does not read "0 playing". */
+      players: number;
     }
   | { t: "ok"; w: string; points: number; score: number }
   | { t: "no"; w: string; reason: string }

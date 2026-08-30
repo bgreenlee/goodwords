@@ -11,13 +11,14 @@
     "test": "vitest run --no-file-parallelism src/game tools/browser.test.ts tools/room.test.ts tools/multiplayer.test.ts",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
-    "deploy": "npm run build && npx wrangler pages deploy dist --project-name goodwords",
+    "deploy": "npm run build && wrangler deploy",
     "analyze": "vitest run tools/analyze.test.ts",
     "floor": "vitest run tools/floor.test.ts",
     "typecheck:worker": "tsc -p tsconfig.worker.json --noEmit",
     "dev:api": "wrangler dev --port 8787",
     "preview:full": "npm run build && wrangler dev --port 8788",
-    "test:boundary": "vitest run tools/boundary.test.ts"
+    "test:boundary": "vitest run tools/boundary.test.ts",
+    "smoke": "vitest run tools/smoke.test.ts"
   },
   "dependencies": {
     "react": "^19.1.0",
@@ -33,6 +34,7 @@
     "prettier": "^3.4.2",
     "typescript": "^5.7.3",
     "vite": "^6.0.11",
-    "vitest": "^3.0.5"
+    "vitest": "^3.0.5",
+    "wrangler": "^4.127.1"
   }
 }

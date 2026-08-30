@@ -92,6 +92,7 @@ export function useRoom(name: string): Room {
               round: msg.round,
               board: msg.board,
               you: msg.you,
+              players: msg.players,
               // Scores reset with the board; do not show the last round's ranking.
               top: msg.round === prev.round ? prev.top : [],
               rank: msg.round === prev.round ? prev.rank : 0,

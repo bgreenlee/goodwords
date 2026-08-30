@@ -1,7 +1,7 @@
 import { rollBoardWith } from "../src/game/dice";
 import { scoreWord } from "../src/game/scoring";
-import { solveBoard } from "../src/game/solver";
-import { Trie } from "../src/game/trie";
+import { findPath } from "../src/game/solver";
+import { WordIndex } from "../src/game/wordindex";
 import { PLAY_MS, ROUND_MS, roundAt } from "../src/game/schedule";
 import {
   PLAYERS_SHOWN,
@@ -14,6 +14,7 @@ import {
 const MAX_WORDS_PER_SECOND = 10;
 const LEADERBOARD_INTERVAL_MS = 750;
 const MAX_NAME = 16;
+const MIN_WORD = 4;
 
 type Player = {
   id: string;
@@ -24,7 +25,7 @@ type Player = {
   stamps: number[];
 };
 
-type Live = { round: number; board: string[]; solution: Set<string> };
+type Live = { round: number; board: string[] };
 
 export interface Env {
   ASSETS: Fetcher;
@@ -47,8 +48,8 @@ export class GameRoom {
   private players = new Map<WebSocket, Player>();
   private live: Live | null = null;
   private rolling: { round: number; ready: Promise<Live> } | null = null;
-  private trie: Trie | null = null;
-  private loading: Promise<Trie> | null = null;
+  private words: WordIndex | null = null;
+  private loading: Promise<WordIndex> | null = null;
   private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
   private lastBroadcast = 0;
   private nextId = 1;
@@ -86,20 +87,39 @@ export class GameRoom {
     server.addEventListener("close", drop);
     server.addEventListener("error", drop);
 
-    // The board goes out as soon as the dictionary is ready.
-    this.ctx.waitUntil(this.sendBoard(server));
+    // The board goes out as soon as the dictionary is ready. A failure here used to
+    // disappear into waitUntil, leaving the player connected to a room that never
+    // dealt; tell them instead.
+    this.ctx.waitUntil(
+      this.sendBoard(server).catch((err) => {
+        console.error("could not deal a board", err);
+        try {
+          server.close(1011, "could not start the game");
+        } catch {
+          /* already gone */
+        }
+      }),
+    );
     return new Response(null, { status: 101, webSocket: client });
   }
 
   /** The dictionary is a static asset, fetched once per object lifetime. */
-  private async dictionary(): Promise<Trie> {
-    if (this.trie) return this.trie;
+  private async dictionary(): Promise<WordIndex> {
+    if (this.words) return this.words;
     if (!this.loading) {
       this.loading = this.env.ASSETS.fetch(new Request("https://assets.local/data/words.txt"))
-        .then((r) => r.text())
+        .then((r) => {
+          if (!r.ok) throw new Error(`word list unavailable: ${r.status}`);
+          return r.text();
+        })
         .then((text) => {
-          this.trie = new Trie(text.split("\n").filter(Boolean));
-          return this.trie;
+          this.words = new WordIndex(text);
+          return this.words;
+        })
+        .catch((err) => {
+          // Let the next connection retry rather than wedging the room for good.
+          this.loading = null;
+          throw err;
         });
     }
     return this.loading;
@@ -111,7 +131,7 @@ export class GameRoom {
    * board must not exist anywhere until the round begins.
    */
   private async startRound(round: number): Promise<Live> {
-    const trie = await this.dictionary();
+    await this.dictionary();
     const bytes = new Uint32Array(64);
     crypto.getRandomValues(bytes);
     let i = 0;
@@ -122,8 +142,7 @@ export class GameRoom {
       }
       return bytes[i++] / 4294967296;
     };
-    const board = rollBoardWith(next);
-    return { round, board, solution: solveBoard(board, trie) };
+    return { round, board: rollBoardWith(next) };
   }
 
   private async current(): Promise<Live> {
@@ -189,6 +208,7 @@ export class GameRoom {
       playEndsAt: start + PLAY_MS,
       roundEndsAt: start + ROUND_MS,
       you: player.id,
+      players: this.players.size,
     });
   }
 
@@ -202,7 +222,9 @@ export class GameRoom {
     }
 
     if (msg.t === "hello" || msg.t === "name") {
-      player.name = String(msg.name ?? "").slice(0, MAX_NAME).trim();
+      player.name = String(msg.name ?? "")
+        .slice(0, MAX_NAME)
+        .trim();
       this.scheduleLeaderboard();
       return;
     }
@@ -225,8 +247,12 @@ export class GameRoom {
     if (player.words.has(word)) {
       return this.send(ws, { t: "no", w: word, reason: "already found" });
     }
-    // The server keeps its own solution; a client's claim is never taken on trust.
-    if (!live.solution.has(word)) {
+    // A client's claim is never taken on trust: the word has to be a real word and
+    // the board has to be able to spell it.
+    if (word.length < MIN_WORD) {
+      return this.send(ws, { t: "no", w: word, reason: "too short" });
+    }
+    if (!this.words!.has(word) || !findPath(live.board, word)) {
       player.rejected++;
       return this.send(ws, { t: "no", w: word, reason: "not on this board" });
     }

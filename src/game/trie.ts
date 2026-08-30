@@ -13,13 +13,28 @@ export class Trie {
   private size = 1;
 
   constructor(words: string[]) {
-    // Upper bound on nodes; trimmed after the build.
-    const cap = words.reduce((n, w) => n + w.length, 1) + 1;
-    this.child = new Int32Array(cap * 26);
-    this.terminal = new Uint8Array(cap);
+    // Grow as needed rather than allocating a bound of one node per letter: shared
+    // prefixes mean only about a quarter of that is ever used, and the difference
+    // is over a hundred megabytes.
+    this.child = new Int32Array(1 << 16);
+    this.terminal = new Uint8Array(1 << 12);
     for (const word of words) this.insert(word);
     this.child = this.child.slice(0, this.size * 26);
     this.terminal = this.terminal.slice(0, this.size);
+  }
+
+  private reserve(node: number): void {
+    const needed = (node + 1) * 26;
+    if (needed > this.child.length) {
+      const grown = new Int32Array(Math.max(Math.ceil(this.child.length * 1.5), needed));
+      grown.set(this.child);
+      this.child = grown;
+    }
+    if (node + 1 > this.terminal.length) {
+      const grown = new Uint8Array(Math.max(Math.ceil(this.terminal.length * 1.5), node + 1));
+      grown.set(this.terminal);
+      this.terminal = grown;
+    }
   }
 
   private insert(word: string): void {
@@ -31,7 +46,8 @@ export class Trie {
       let next = this.child[slot];
       if (next === 0) {
         next = this.size++;
-        this.child[slot] = next;
+        this.reserve(next);
+        this.child[node * 26 + c] = next;
       }
       node = next;
     }
