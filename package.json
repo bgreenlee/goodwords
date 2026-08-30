@@ -18,7 +18,8 @@
     "dev:api": "wrangler dev --port 8787",
     "preview:full": "npm run build && wrangler dev --port 8788",
     "test:boundary": "vitest run tools/boundary.test.ts",
-    "smoke": "vitest run tools/smoke.test.ts"
+    "smoke": "vitest run tools/smoke.test.ts",
+    "live": "vitest run tools/live.test.ts"
   },
   "dependencies": {
     "react": "^19.1.0",

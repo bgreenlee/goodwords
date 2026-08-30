@@ -117,7 +117,8 @@ happily keep passing on stale artifacts.
 both custom domains together. The domain is registered through Cloudflare, so it is
 already a zone in the account and needs no onboarding step.
 
-`npm run smoke` is worth running every time. It is the only check that covers what
+`npm run live` goes further and puts two real browsers into a game on the deployed
+site. `npm run smoke` is worth running every time. It is the only check that covers what
 a real deploy adds: the websocket reaching the durable object, and the object
 reading the word list out of the assets binding. A worker gets 128 MB, far less
 than a laptop, and that limit is invisible until you deploy.
