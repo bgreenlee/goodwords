@@ -135,7 +135,9 @@ test("the room deals a board, scores real words, and rejects the rest", async ()
   expect(Math.abs(dealt.now - Date.now())).toBeLessThan(10_000);
   expect(dealt.playEndsAt).toBeLessThan(dealt.roundEndsAt);
 
-  const solution = [...solveBoard(dealt.board, trie)];
+  const bonus = pickBonus(dealt.board, bonusList);
+  // Exclude the bonus word: it pays double, which is its own test.
+  const solution = [...solveBoard(dealt.board, trie)].filter((w) => w !== bonus?.word);
   expect(solution.length).toBeGreaterThan(20);
 
   const word = solution[0];
@@ -226,7 +228,10 @@ test("a day's standings outlive the connection that earned them", async () => {
   const word = solution.reduce((a, b) => (scoreWord(b) > scoreWord(a) ? b : a));
   first.send({ t: "word", w: word });
   const ok = await first.next("ok");
-  expect(ok.score).toBe(scoreWord(word));
+  // The highest-scoring word on a board is usually also the bonus word, which
+  // pays double — so take what the room awarded rather than restating the rules.
+  expect(ok.points).toBeGreaterThanOrEqual(scoreWord(word));
+  expect(ok.score).toBe(ok.points);
 
   // Closing the tab must not throw the round away.
   first.ws.close();
@@ -241,9 +246,9 @@ test("a day's standings outlive the connection that earned them", async () => {
   const mine = day.top.find((row) => row.id === me);
   expect(mine, `no entry for ${me} in ${JSON.stringify(day.top)}`).toBeDefined();
   expect(mine!.name).toBe("ada");
-  expect(mine!.total).toBe(scoreWord(word));
+  expect(mine!.total).toBe(ok.points);
   expect(mine!.rounds).toBe(1);
-  expect(mine!.best).toBe(scoreWord(word));
+  expect(mine!.best).toBe(ok.points);
 
   // Standings are ordered by total, highest first.
   const totals = day.top.map((r) => r.total);

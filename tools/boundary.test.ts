@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { roundAt, ROUND_MS } from "../src/game/schedule";
 import { scoreWord } from "../src/game/scoring";
+import { pickBonus, type BonusCandidate } from "../src/game/bonus";
 import { solveBoard } from "../src/game/solver";
 import { Trie } from "../src/game/trie";
 import type { ServerMessage } from "../src/net/protocol";
@@ -23,6 +24,7 @@ const PORT = 8793;
 const BASE = `http://127.0.0.1:${PORT}`;
 let server: ReturnType<typeof spawn>;
 const trie = new Trie(readFileSync("public/data/words.txt", "utf8").split("\n"));
+const bonusList = JSON.parse(readFileSync("public/data/bonus.json", "utf8")) as BonusCandidate[];
 
 class Client {
   ws: WebSocket;
@@ -144,7 +146,11 @@ test("a word nobody else found is worth double, settled when the round ends", as
   );
   expect(dealt[0].board).toEqual(dealt[1].board);
 
-  const words = [...solveBoard(dealt[0].board, trie)].filter((w) => w !== dealt[0].bonus?.gloss);
+  // The bonus word pays double, which would confuse an assertion about unique
+  // words being worth double. (An earlier version compared the word to the gloss,
+  // which excluded nothing at all.)
+  const bonus = pickBonus(dealt[0].board, bonusList);
+  const words = [...solveBoard(dealt[0].board, trie)].filter((w) => w !== bonus?.word);
   expect(words.length).toBeGreaterThan(4);
   const shared = words[0];
   const onlyAda = words[1];
