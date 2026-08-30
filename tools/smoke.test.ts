@@ -11,7 +11,6 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import { solveBoard } from "../src/game/solver";
 import { Trie } from "../src/game/trie";
-import { roundAt } from "../src/game/schedule";
 import type { ServerMessage } from "../src/net/protocol";
 
 const BASE = process.env.SMOKE_URL ?? "https://goodwords.fun";
@@ -38,18 +37,18 @@ test("the deployment matches the current build", async () => {
   expect(served, "the deployment is behind dist/ — run npm run deploy").toEqual(local);
 }, 90_000);
 
-test("the deployed game serves, deals a board, and scores a word", async () => {
-  const page = await fetch(BASE);
-  expect(page.status, `GET ${BASE}`).toBe(200);
-  expect(await page.text()).toContain("<title>Good Words</title>");
-
-  const list = await fetch(`${BASE}/data/words.txt`);
-  expect(list.status).toBe(200);
-  const trie = new Trie((await list.text()).split("\n").filter(Boolean));
-
+/**
+ * One attempt at the websocket check. Publishing restarts the room and closes
+ * every socket with it, and this runs seconds after a deploy — so a dropped
+ * connection here means try again, not that the game is broken.
+ */
+async function checkRoom(): Promise<{ board: string[]; reason: string }> {
   const ws = new WebSocket(`${BASE.replace(/^http/, "ws")}/api/play`);
   const messages: ServerMessage[] = [];
+  let closed = false;
   ws.addEventListener("message", (e) => messages.push(JSON.parse(String(e.data))));
+  ws.addEventListener("close", () => (closed = true));
+
   await new Promise<void>((res, rej) => {
     ws.addEventListener("open", () => res());
     ws.addEventListener("error", () => rej(new Error("websocket refused")));
@@ -62,27 +61,60 @@ test("the deployed game serves, deals a board, and scores a word", async () => {
     for (;;) {
       const found = messages.find((m) => m.t === t);
       if (found) return found as Extract<ServerMessage, { t: T }>;
+      if (closed) throw new Error(`socket closed while waiting for "${t}"`);
       if (Date.now() > deadline) throw new Error(`no "${t}"; saw ${JSON.stringify(messages)}`);
       await new Promise((r) => setTimeout(r, 200));
     }
   };
 
-  // The object must have loaded the dictionary from the assets binding to get here.
+  // Getting a board at all means the room loaded its dictionary from the assets
+  // binding, which is the thing only a real deploy exercises.
   const dealt = await waitFor("board");
   expect(dealt.board).toHaveLength(25);
   expect(Math.abs(dealt.now - Date.now())).toBeLessThan(15_000);
 
-  const solution = [...solveBoard(dealt.board, trie)];
-  expect(solution.length, "the dealt board should be playable").toBeGreaterThan(20);
-
-  // Deliberately never scores. A finished round is kept for a day, and a check that
-  // runs on every deploy would sit in the standings next to people actually playing.
-  // Refusing a word proves as much of the path: the socket reached the room, the
-  // room dealt a board, and it consulted its own dictionary to say no. Scoring is
-  // covered against a throwaway worker by the room and multiplayer suites.
-  if (roundAt(dealt.now).phase === "playing") {
-    ws.send(JSON.stringify({ t: "word", w: "zzzzq" }));
-    expect((await waitFor("no")).reason).toBe("not on this board");
+  // Wait out a break rather than asking during one: mid-break the room answers
+  // "round over", which proves nothing about its dictionary. The server's own
+  // timestamps are the authority, not this machine's clock.
+  const skew = dealt.now - Date.now();
+  const untilPlaying = dealt.roundEndsAt - (Date.now() + skew);
+  if (Date.now() + skew > dealt.playEndsAt) {
+    await new Promise((r) => setTimeout(r, Math.max(0, untilPlaying) + 1500));
+    await waitFor("board", 30_000);
   }
+
+  // Deliberately never scores. A finished round is kept for a day, and a check
+  // that runs on every deploy would sit in the standings beside real players.
+  // Refusing a word proves the same path: the socket reached the room, the room
+  // dealt a board, and it consulted its own dictionary to say no.
+  ws.send(JSON.stringify({ t: "word", w: "zzzzq" }));
+  const refused = await waitFor("no");
   ws.close();
-}, 60_000);
+  return { board: dealt.board, reason: refused.reason };
+}
+
+test("the deployed game serves, deals a board, and refuses a word it cannot spell", async () => {
+  const page = await fetch(BASE);
+  expect(page.status, `GET ${BASE}`).toBe(200);
+  expect(await page.text()).toContain("<title>Good Words</title>");
+
+  const list = await fetch(`${BASE}/data/words.txt`);
+  expect(list.status).toBe(200);
+  const trie = new Trie((await list.text()).split("\n").filter(Boolean));
+
+  let last: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const { board, reason } = await checkRoom();
+      expect(solveBoard(board, trie).size, "the dealt board should be playable").toBeGreaterThan(
+        20,
+      );
+      expect(reason).toBe("not on this board");
+      return;
+    } catch (err) {
+      last = err;
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
+  throw last;
+}, 180_000);
