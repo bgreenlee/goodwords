@@ -203,6 +203,15 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
           partOfSpeech: t.partOfSpeech,
           gloss: t.gloss,
         })),
+        bonus:
+          revealed && clue
+            ? {
+                word: revealed,
+                partOfSpeech: clue.partOfSpeech,
+                gloss: clue.gloss,
+                found: bonusFound === revealed,
+              }
+            : null,
         at: Date.now(),
       }),
     );

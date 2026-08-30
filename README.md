@@ -358,7 +358,8 @@ also replayed to the room, spaced out so the rate limit does not refuse them, so
 the leaderboard catches up too.
 
 Finished rounds are kept — the last sixty — under **Games** in the header, each
-with its board, the words you found, and the definitions you were shown. It is all
+with its board, the words you found, the definitions you were shown, and the word
+the round was named for, lit on the board where it was. It is all
 in `localStorage`; there is still no account and nothing leaves the browser.
 
 ## The definitions column

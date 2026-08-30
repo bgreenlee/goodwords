@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Board } from "./Board";
+import { findPath } from "../game/solver";
 import { scoreWord } from "../game/scoring";
 import type { PlayedGame } from "../storage";
 
@@ -66,7 +67,24 @@ export function HistoryDialog({ games, onClose }: Props) {
 
             <div className="past__detail">
               <div className="past__board">
-                <Board cells={game.board} />
+                {/* Lit the same way the round ended, so the board reads the same. */}
+                <Board
+                  cells={game.board}
+                  path={game.bonus ? (findPath(game.board, game.bonus.word) ?? []) : []}
+                />
+                {game.bonus && (
+                  <div className={`clue${game.bonus.found ? " clue--found" : ""}`}>
+                    <span className="clue__tag">
+                      {game.bonus.found ? "Bonus word" : "Bonus word, missed"}
+                    </span>
+                    <span
+                      className={game.bonus.found ? "clue__word" : "clue__word clue__word--missed"}
+                    >
+                      {game.bonus.word}
+                    </span>
+                    <span className="clue__gloss">{game.bonus.gloss}</span>
+                  </div>
+                )}
               </div>
               <div className="past__cols">
                 <section>

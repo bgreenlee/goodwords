@@ -161,6 +161,19 @@ test("a finished round is kept and can be looked over later", async () => {
   expect(await page.locator(".sheet .guesses__word").allTextContents()).toEqual([pick]);
   expect(await page.locator(".sheet .vocab__item").count()).toBeGreaterThan(0);
 
+  // The round was named for a word; the record should say which, and light it.
+  const kept = await page.locator(".sheet .clue").innerText();
+  expect(kept).toMatch(/BONUS WORD/i);
+  const named = await page.locator(".sheet .clue__word").textContent();
+  expect(named, "the stored game should name its bonus word").toBeTruthy();
+  const lit = await page.$$eval(".sheet .tile--lit", (els) =>
+    els
+      .map((e) => e.textContent!.trim().toLowerCase())
+      .sort()
+      .join(""),
+  );
+  expect(lit).toBe(named!.toLowerCase().split("").sort().join(""));
+
   // It survives a reload, which is the point of keeping it.
   await page.locator(".sheet__close").click();
   await page.reload();

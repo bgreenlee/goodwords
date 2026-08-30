@@ -800,6 +800,11 @@ body {
   }
 }
 
+.past__board .clue {
+  margin-top: 10px;
+  font-size: 13px;
+}
+
 .past__cols {
   display: grid;
   gap: 18px;

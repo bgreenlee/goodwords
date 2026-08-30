@@ -13,6 +13,14 @@ export type TaughtWord = {
   gloss: string;
 };
 
+/** The word a round was named for, kept with the round it belonged to. */
+export type PlayedBonus = {
+  word: string;
+  partOfSpeech: string;
+  gloss: string;
+  found: boolean;
+};
+
 export type PlayedGame = {
   round: number;
   board: string[];
@@ -21,6 +29,8 @@ export type PlayedGame = {
   total: number;
   possible: number;
   taught: TaughtWord[];
+  /** Absent on rounds filed before the bonus word existed. */
+  bonus?: PlayedBonus | null;
   at: number;
 };
 
