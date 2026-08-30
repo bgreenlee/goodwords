@@ -210,6 +210,32 @@ asks whether one word is real, which is a binary search over the sorted list. Th
 distinction is not academic — the first deploy failed on it, because 128 MB is
 plenty on a laptop and not enough in a worker.
 
+### What it costs, and what that bought
+
+On the Workers Paid plan the room's month includes 1,000,000 requests, 400,000
+GB-s of duration, 25 billion SQLite rows read and 50 million written, over a $5
+base. Nothing here comes close: five hundred players at half an hour a day is
+about 130,000 requests and 150,000 row writes a month.
+
+The tightest of them is duration, because a durable object accrues it for every
+second it is alive and it is alive while any socket is open. A room that never
+goes quiet is 331,776 GB-s a month, or 83% of what is included. One tab left open
+overnight is enough to keep it alive, which is worth knowing before adding a
+second room.
+
+This was learned the hard way on the free tier, where the equivalent numbers are
+per day rather than per month. A day of load testing exhausted five million daily
+row reads, because the day's standings were recomputed with a full table scan on
+every connection. The room then threw on every join and the error handling closed
+the socket, so a leaderboard problem became a total outage with three people
+happily playing throughout.
+
+Hence two rules the room now follows. The standings are cached and recomputed only
+when a finished round is filed. And **nothing about storage may stop a game**: the
+standings, the written-down board, the alarm and the player name all degrade to a
+logged error, because a player who cannot see a leaderboard still has a game and a
+player who cannot connect does not.
+
 ### Not trusting the client
 
 - the server checks each word against its own solve of its own board
