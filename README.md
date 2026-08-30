@@ -118,8 +118,10 @@ both custom domains together. The domain is registered through Cloudflare, so it
 already a zone in the account and needs no onboarding step.
 
 `npm run live` goes further and puts two real browsers into a game on the deployed
-site. `npm run smoke` is worth running every time. It is the only check that covers what
-a real deploy adds: the websocket reaching the durable object, and the object
+site. `npm run smoke` is worth running every time. Its first check compares the hashed
+asset names in `dist/` with the ones the deployment is serving, because committing
+is not deploying and the difference is otherwise invisible. The rest covers what
+only a real deploy exercises: the websocket reaching the durable object, and the object
 reading the word list out of the assets binding. A worker gets 128 MB, far less
 than a laptop, and that limit is invisible until you deploy.
 

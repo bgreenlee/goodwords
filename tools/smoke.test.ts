@@ -7,6 +7,7 @@
  *   npm run smoke                       # the live site
  *   SMOKE_URL=https://... npm run smoke # somewhere else
  */
+import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import { solveBoard } from "../src/game/solver";
 import { Trie } from "../src/game/trie";
@@ -15,6 +16,21 @@ import { roundAt } from "../src/game/schedule";
 import type { ServerMessage } from "../src/net/protocol";
 
 const BASE = process.env.SMOKE_URL ?? "https://goodwords.fun";
+
+const assetsOf = (html: string) =>
+  [...html.matchAll(/\/assets\/[A-Za-z0-9_.-]+/g)].map((m) => m[0]).sort();
+
+test("the deployment matches the current build", () => {
+  // Committing is not deploying. Twice now a change has been verified locally,
+  // pushed, and left un-deployed; comparing the hashed asset names says so plainly.
+  const local = assetsOf(readFileSync("dist/index.html", "utf8"));
+  expect(local.length, "no built assets — run npm run build").toBeGreaterThan(0);
+  return fetch(BASE)
+    .then((r) => r.text())
+    .then((html) => {
+      expect(assetsOf(html), "the deployment is behind dist/ — run npm run deploy").toEqual(local);
+    });
+}, 30_000);
 
 test("the deployed game serves, deals a board, and scores a word", async () => {
   const page = await fetch(BASE);
