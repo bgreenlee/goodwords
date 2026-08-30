@@ -17,12 +17,10 @@
   "durable_objects": {
     "bindings": [{ "name": "ROOM", "class_name": "GameRoom" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }]
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }],
 
-  // Once goodwords.fun is a zone in this Cloudflare account, uncomment to serve it
-  // from the apex. Deploying with this set before the zone exists will fail.
-  // "routes": [
-  //   { "pattern": "goodwords.fun", "custom_domain": true },
-  //   { "pattern": "www.goodwords.fun", "custom_domain": true }
-  // ]
+  "routes": [
+    { "pattern": "goodwords.fun", "custom_domain": true },
+    { "pattern": "www.goodwords.fun", "custom_domain": true }
+  ]
 }
