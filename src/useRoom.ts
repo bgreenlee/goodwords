@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Board as BoardCells } from "./game/dice";
-import type { DailyRow, LeaderRow, ServerMessage } from "./net/protocol";
+import type { BonusClue, DailyRow, LeaderRow, ServerMessage, Tally } from "./net/protocol";
 
 /**
  * "solo" means no room was ever reached, so the board comes from the clock.
@@ -21,6 +21,12 @@ export type Room = {
   you: string | null;
   /** Standings across the last day, which only move when a round finishes. */
   daily: DailyRow[];
+  /** The round's bonus word, given as its definition. Null when there is none. */
+  bonus: BonusClue | null;
+  /** How the last finished round settled, once everyone's words were in. */
+  tally: Tally | null;
+  /** Set to the bonus word the moment the room confirms you found it. */
+  bonusHit: string | null;
   submit: (word: string) => void;
 };
 
@@ -36,6 +42,9 @@ const EMPTY: Snapshot = {
   rank: 0,
   you: null,
   daily: [],
+  bonus: null,
+  tally: null,
+  bonusHit: null,
 };
 
 // Back off on repeated failures, but keep trying: a player who started solo should
@@ -104,10 +113,21 @@ export function useRoom(name: string, id: string): Room {
               board: msg.board,
               you: msg.you,
               players: msg.players,
+              bonus: msg.bonus,
+              bonusHit: msg.round === prev.round ? prev.bonusHit : null,
+              // A new board makes the last round's settlement history.
+              tally: msg.round === prev.round ? prev.tally : null,
               // Scores reset with the board; do not show the last round's ranking.
               top: msg.round === prev.round ? prev.top : [],
               rank: msg.round === prev.round ? prev.rank : 0,
             };
+          }
+          if (msg.t === "ok" && msg.bonus) {
+            return { ...prev, bonusHit: msg.w };
+          }
+          if (msg.t === "tally") {
+            const { t: _t, ...tally } = msg;
+            return { ...prev, tally };
           }
           if (msg.t === "daily") {
             return { ...prev, daily: msg.top };

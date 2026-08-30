@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { BonusClue } from "./components/BonusClue";
 import { Board } from "./components/Board";
 import { GuessPanel } from "./components/GuessPanel";
 import { Leaderboard } from "./components/Leaderboard";
@@ -7,7 +8,8 @@ import { CELL_COUNT, rollBoard, type Board as BoardCells } from "./game/dice";
 import { loadDictionary, loadVocab, type GameData, type Vocab } from "./game/data";
 import { formatClock } from "./game/schedule";
 import { scoreRound, type RoundResults } from "./game/round";
-import { scoreWord } from "./game/scoring";
+import { bonusFromSolution } from "./game/bonus";
+import { BONUS_MULTIPLIER, scoreWord } from "./game/scoring";
 import { findPath, solveBoard } from "./game/solver";
 import { teachableFrom } from "./game/vocab";
 import { HistoryDialog } from "./components/HistoryDialog";
@@ -69,6 +71,8 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   const [path, setPath] = useState<number[]>([]);
   const [traced, setTraced] = useState<number[] | null>(null);
   const [rotation, setRotation] = useState(0);
+  /** Set when we are playing alone and know the bonus word ourselves. */
+  const [soloHit, setSoloHit] = useState<string | null>(null);
   const [results, setResults] = useState<RoundResults | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -121,6 +125,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     setFeedback(null);
     setPath([]);
     setTraced(null);
+    setSoloHit(null);
   }
 
   // The break is the reveal: score the board that was just played. If the board
@@ -133,6 +138,25 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
       setResults(scoreRound(round, board, solution, guesses));
     }
   }
+
+  // The word the round is named for. Live, the room sends only the definition and
+  // tells us the word when it is found; alone, we work it out ourselves.
+  const soloBonus =
+    room.status === "solo" && vocab && key !== null
+      ? bonusFromSolution(solution, vocab.defs, vocab.lemmaOf, data.zipf)
+      : null;
+  const clue =
+    room.bonus ??
+    (soloBonus
+      ? {
+          partOfSpeech: soloBonus.partOfSpeech,
+          gloss: soloBonus.gloss,
+          length: soloBonus.word.length,
+        }
+      : null);
+
+  // Alone we spot it ourselves; live the room confirms it.
+  const bonusFound = soloHit ?? room.bonusHit;
 
   const taught = results && vocab ? teachableFrom(results.missed, vocab, data) : null;
   const tracingThisBoard = results?.round === round;
@@ -258,7 +282,8 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     return () => clearTimeout(id);
   }, [path]);
 
-  const score = guesses.reduce((n, w) => n + scoreWord(w), 0);
+  const worth = (w: string) => scoreWord(w) * (w === bonusFound ? BONUS_MULTIPLIER : 1);
+  const score = guesses.reduce((n, w) => n + worth(w), 0);
   // Until the room answers we do not know whose board this is. Showing the solo
   // board first would swap it under the player a moment later, on every load.
   const playing = phase === "playing" && !waiting;
@@ -274,6 +299,10 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     const cells = findPath(board, word);
     if (!cells) return setFeedback({ text: `${word} isn’t on this board`, ok: false });
 
+    // Alone we know the word; live the room confirms it, and either way the flash
+    // and the doubled points land at once.
+    const isBonus = soloBonus ? soloBonus.word === word : false;
+    if (isBonus) setSoloHit(word);
     setGuesses((prev) => [word, ...prev]);
     room.submit(word);
     // The word just accepted is what the player is looking for. Any hover still
@@ -281,7 +310,12 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     tracedWord.current = null;
     setTraced(null);
     setPath(cells);
-    setFeedback({ text: `${word} +${scoreWord(word)}`, ok: true });
+    setFeedback({
+      text: isBonus
+        ? `${word} +${scoreWord(word) * BONUS_MULTIPLIER} — the bonus word`
+        : `${word} +${scoreWord(word)}`,
+      ok: true,
+    });
   }
 
   return (
@@ -320,6 +354,12 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
             <Board cells={board} path={traced ?? (playing ? path : [])} rotation={rotation} />
           )}
 
+          <BonusClue
+            clue={clue}
+            found={bonusFound}
+            reveal={playing ? null : (room.tally?.bonusWord ?? soloBonus?.word ?? null)}
+          />
+
           <form
             className="entry"
             onSubmit={(e) => {
@@ -345,8 +385,17 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
             <p className={`feedback${feedback.ok ? " feedback--ok" : ""}`}>{feedback.text}</p>
           ) : !playing && results ? (
             <p className="feedback feedback--ok">
-              {results.score} of {results.total} points · {results.found.length} of{" "}
+              {room.tally?.round === results.round ? room.tally.score : results.score} of{" "}
+              {results.total} points · {results.found.length} of{" "}
               {results.found.length + results.missed.length} words
+              {room.tally?.round === results.round && room.tally.unique.length > 0 && (
+                <>
+                  {" · "}
+                  <span title={room.tally.unique.join(", ")}>
+                    {room.tally.unique.length} only you found +{room.tally.uniqueBonus}
+                  </span>
+                </>
+              )}
             </p>
           ) : (
             <p className="feedback">&nbsp;</p>

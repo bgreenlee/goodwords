@@ -318,9 +318,25 @@ roughly 1.2 MB over the wire.
 
 ## The rules
 
-Big Boggle: 5×5, words of four letters and up, 1/2/3/5/11 points for 4/5/6/7/8+
-letters. Letters must be adjacent, diagonals count, and no cell is reused within a
-word. The board uses the real 25-die Big Boggle set, so the letter mix plays the
+5×5, words of four letters and up. Letters must be adjacent, diagonals count, and no cell is reused within a
+word.
+
+Scoring departs from Boggle in three ways, all aimed at the same thing: making the
+game about words worth knowing rather than words worth memorising.
+
+**Length pays, and keeps paying.** 1/2/4/8/15/25/40 for 4 to 10 letters, 60 beyond.
+Big Boggle pays 11 for everything from eight up, so a ten-letter find was worth no
+more than an eight. Measured over 400 boards, four-letter words are 47% of
+everything findable and eight-letter words 1.8%, so the curve climbs to match.
+
+**Each round is named for a word**, and you are given its definition rather than
+the word. It is the longest word the board can spell that is also worth knowing —
+99% of boards have one, averaging 7.6 letters. Finding it pays double. This is the
+definitions column turned into the objective instead of the reward.
+
+**A word nobody else found is worth double.** That cannot be known while the round
+runs, since somebody may still find it, so it settles at the boundary and is shown
+in the break. It only applies when there is somebody to have missed it. The board uses the real 25-die Big Boggle set, so the letter mix plays the
 way the physical game does — uniform random letters give vowel-starved boards. The
 Q die is always played as Qu.
 

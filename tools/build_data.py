@@ -22,6 +22,13 @@ OUT = os.path.join(ROOT, "public", "data")
 # Below this zipf a word is a Scrabble-list artifact, not vocabulary worth teaching.
 VOCAB_ZIPF_FLOOR = 1.6
 GLOSS_MAX = 130
+# A bonus word has to be a hunt, and has to be worth having hunted.
+BONUS_MIN_LENGTH = 6
+# Measured over 400 boards the longest findable word was 11 letters; 13 is headroom
+# and everything past it is dead weight in the room's memory.
+BONUS_MAX_LENGTH = 13
+BONUS_ZIPF_MIN = 1.8
+BONUS_ZIPF_MAX = 4.4
 
 
 def clean_gloss(g):
@@ -74,6 +81,26 @@ def main():
 
     with open(os.path.join(OUT, "vocab.json"), "w") as f:
         json.dump({"defs": defs, "lemmaOf": lemma_of}, f, separators=(",", ":"), sort_keys=True)
+
+    # Candidates for a round's bonus word: long enough to be a hunt, real enough to
+    # be worth knowing. Longest first, then rarest, so the room takes the first one
+    # the board can spell and stops.
+    candidates = []
+    for w in words:
+        if not (BONUS_MIN_LENGTH <= len(w) <= BONUS_MAX_LENGTH):
+            continue
+        lemma = lemma_of.get(w, w)
+        entry = defs.get(lemma)
+        if not entry:
+            continue
+        z = zipf.get(lemma, 0.0)
+        if z < BONUS_ZIPF_MIN or z > BONUS_ZIPF_MAX:
+            continue
+        candidates.append((-len(w), z, w, entry))
+    candidates.sort()
+    with open(os.path.join(OUT, "bonus.json"), "w") as f:
+        json.dump([[w, entry] for _, _, w, entry in candidates], f, separators=(",", ":"))
+    print(f"bonus word candidates ({BONUS_MIN_LENGTH}+ letters): {len(candidates)}")
 
     print(f"teachable lemmas: {len(defs)}")
     print(f"inflections mapped to a lemma: {len(lemma_of)}")

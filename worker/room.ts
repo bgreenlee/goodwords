@@ -1,5 +1,6 @@
 import { CELL_COUNT, rollBoardWith } from "../src/game/dice";
-import { scoreWord } from "../src/game/scoring";
+import { pickBonus, type BonusCandidate, type BonusWord } from "../src/game/bonus";
+import { BONUS_MULTIPLIER, UNIQUE_MULTIPLIER, scoreWord } from "../src/game/scoring";
 import { findPath } from "../src/game/solver";
 import { WordIndex } from "../src/game/wordindex";
 import { PLAY_MS, ROUND_MS, roundAt } from "../src/game/schedule";
@@ -10,6 +11,7 @@ import {
   type DailyRow,
   type LeaderRow,
   type ServerMessage,
+  type Tally,
 } from "../src/net/protocol";
 
 /** A player types a handful of words a second at most; well above human speed. */
@@ -32,7 +34,7 @@ type Player = {
   stamps: number[];
 };
 
-type Live = { round: number; board: string[] };
+type Live = { round: number; board: string[]; bonus: BonusWord | null };
 
 export interface Env {
   ASSETS: Fetcher;
@@ -57,6 +59,8 @@ export class GameRoom {
   private rolling: { round: number; ready: Promise<Live> } | null = null;
   private words: WordIndex | null = null;
   private loading: Promise<WordIndex> | null = null;
+  private bonusList: BonusCandidate[] | null = null;
+  private loadingBonus: Promise<BonusCandidate[]> | null = null;
   private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
   private lastBroadcast = 0;
   /**
@@ -163,6 +167,27 @@ export class GameRoom {
     return this.loading;
   }
 
+  /** Bonus-word candidates, longest first. Fetched once per object lifetime. */
+  private async bonusCandidates(): Promise<BonusCandidate[]> {
+    if (this.bonusList) return this.bonusList;
+    if (!this.loadingBonus) {
+      this.loadingBonus = this.env.ASSETS.fetch(new Request("https://assets.local/data/bonus.json"))
+        .then((r) => {
+          if (!r.ok) throw new Error(`bonus list unavailable: ${r.status}`);
+          return r.json() as Promise<BonusCandidate[]>;
+        })
+        .then((list) => {
+          this.bonusList = list;
+          return list;
+        })
+        .catch((err) => {
+          this.loadingBonus = null;
+          throw err;
+        });
+    }
+    return this.loadingBonus;
+  }
+
   /**
    * Roll a board nobody can precompute. The solo game derives its board from the
    * round number, which is fine when there is no leaderboard to game, but here the
@@ -180,7 +205,7 @@ export class GameRoom {
     try {
       const saved = await this.ctx.storage.get<{ round: number; board: string[] }>(LIVE_KEY);
       if (saved && saved.round === round && saved.board?.length === CELL_COUNT) {
-        return { round, board: saved.board };
+        return { round, board: saved.board, bonus: await this.bonusFor(saved.board) };
       }
     } catch (err) {
       console.error("could not read the round in play", err);
@@ -202,7 +227,45 @@ export class GameRoom {
     } catch (err) {
       console.error("could not write down the round in play", err);
     }
-    return { round, board };
+    return { round, board, bonus: await this.bonusFor(board) };
+  }
+
+  /**
+   * Close out a round. A word only you found is worth double, which can only be
+   * known once everyone's words are in — so it is settled here rather than as the
+   * word is played. With one player there is nobody to have missed anything.
+   */
+  private settle(finished: Live): void {
+    const counts = new Map<string, number>();
+    for (const player of this.players.values()) {
+      for (const word of player.words) counts.set(word, (counts.get(word) ?? 0) + 1);
+    }
+    const contested = this.players.size > 1;
+
+    for (const [ws, player] of this.players) {
+      const unique = contested ? [...player.words].filter((w) => counts.get(w) === 1) : [];
+      const uniqueBonus = unique.reduce((n, w) => n + scoreWord(w) * (UNIQUE_MULTIPLIER - 1), 0);
+      player.score += uniqueBonus;
+      const tally: Tally = {
+        round: finished.round,
+        unique,
+        uniqueBonus,
+        bonusWord: finished.bonus?.word ?? null,
+        gotBonus: finished.bonus ? player.words.has(finished.bonus.word) : false,
+        score: player.score,
+      };
+      this.send(ws, { t: "tally", ...tally });
+    }
+  }
+
+  /** A board that can spell nothing worth naming simply has no bonus that round. */
+  private async bonusFor(board: string[]): Promise<BonusWord | null> {
+    try {
+      return pickBonus(board, await this.bonusCandidates());
+    } catch (err) {
+      console.error("could not choose a bonus word", err);
+      return null;
+    }
   }
 
   private async current(): Promise<Live> {
@@ -216,6 +279,7 @@ export class GameRoom {
         const ready = this.startRound(round).then(
           (live) => {
             const finished = this.live;
+            if (finished) this.settle(finished);
             for (const player of this.players.values()) {
               if (finished) this.record(player, finished.round);
               player.score = 0;
@@ -286,6 +350,13 @@ export class GameRoom {
       roundEndsAt: start + ROUND_MS,
       you: player.id,
       players: this.players.size,
+      bonus: live.bonus
+        ? {
+            partOfSpeech: live.bonus.partOfSpeech,
+            gloss: live.bonus.gloss,
+            length: live.bonus.word.length,
+          }
+        : null,
     });
   }
 
@@ -340,9 +411,17 @@ export class GameRoom {
       return this.send(ws, { t: "no", w: word, reason: "not on this board" });
     }
 
+    const isBonus = live.bonus?.word === word;
+    const points = scoreWord(word) * (isBonus ? BONUS_MULTIPLIER : 1);
     player.words.add(word);
-    player.score += scoreWord(word);
-    this.send(ws, { t: "ok", w: word, points: scoreWord(word), score: player.score });
+    player.score += points;
+    this.send(ws, {
+      t: "ok",
+      w: word,
+      points,
+      score: player.score,
+      ...(isBonus ? { bonus: true as const } : {}),
+    });
     this.scheduleLeaderboard();
   }
 

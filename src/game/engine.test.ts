@@ -10,6 +10,7 @@ import {
 } from "./dice";
 import { roundAt, PLAY_MS, ROUND_MS } from "./schedule";
 import { scoreWord } from "./scoring";
+import { pickBonus } from "./bonus";
 import { labelRows } from "../names";
 import { scoreRound } from "./round";
 import { findPath, solveBoard } from "./solver";
@@ -98,9 +99,61 @@ describe("schedule", () => {
 });
 
 describe("scoring", () => {
-  test("Big Boggle values, four letters and up", () => {
+  test("nothing under four letters", () => {
     expect(scoreWord("cat")).toBe(0);
-    expect([4, 5, 6, 7, 8, 12].map((n) => scoreWord("a".repeat(n)))).toEqual([1, 2, 3, 5, 11, 11]);
+    expect(scoreWord("")).toBe(0);
+  });
+
+  test("longer is always worth more, and it does not stop at eight", () => {
+    const lengths = [4, 5, 6, 7, 8, 9, 10, 11, 14];
+    const points = lengths.map((n) => scoreWord("a".repeat(n)));
+    expect(points).toEqual([1, 2, 4, 8, 15, 25, 40, 60, 60]);
+    // Big Boggle pays 11 for everything from eight up, so a ten-letter find was
+    // worth no more than an eight. Each step now pays more than the last.
+    for (let i = 1; i < 8; i++) expect(points[i]).toBeGreaterThan(points[i - 1]);
+  });
+
+  test("a long word beats padding out short ones", () => {
+    const long = scoreWord("outclass");
+    const short = 6 * scoreWord("bare");
+    expect(long, "eight letters should beat six four-letter words").toBeGreaterThan(short);
+  });
+});
+
+describe("the bonus word", () => {
+  const bonusList = JSON.parse(readFileSync("public/data/bonus.json", "utf8")) as [
+    string,
+    string,
+  ][];
+
+  test("candidates are ordered longest first", () => {
+    for (let i = 1; i < 500; i++) {
+      expect(bonusList[i][0].length).toBeLessThanOrEqual(bonusList[i - 1][0].length);
+    }
+  });
+
+  test("it is a word the board can actually spell, and worth knowing", () => {
+    for (let r = 0; r < 40; r++) {
+      const board = rollBoard(r);
+      const bonus = pickBonus(board, bonusList);
+      if (!bonus) continue;
+      expect(findPath(board, bonus.word), `${bonus.word} on round ${r}`).not.toBeNull();
+      expect(trie.has(bonus.word)).toBe(true);
+      expect(bonus.word.length).toBeGreaterThanOrEqual(6);
+      expect(bonus.gloss.length).toBeGreaterThan(3);
+    }
+  });
+
+  test("it is the longest such word on the board", () => {
+    for (let r = 0; r < 20; r++) {
+      const board = rollBoard(r);
+      const bonus = pickBonus(board, bonusList);
+      if (!bonus) continue;
+      const longer = bonusList.filter(([w]) => w.length > bonus.word.length);
+      for (const [w] of longer) {
+        expect(findPath(board, w), `${w} is longer than ${bonus.word}`).toBeNull();
+      }
+    }
   });
 });
 

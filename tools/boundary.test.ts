@@ -12,6 +12,7 @@ import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { roundAt, ROUND_MS } from "../src/game/schedule";
+import { scoreWord } from "../src/game/scoring";
 import { solveBoard } from "../src/game/solver";
 import { Trie } from "../src/game/trie";
 import type { ServerMessage } from "../src/net/protocol";
@@ -27,6 +28,7 @@ class Client {
   ws: WebSocket;
   boards: Extract<ServerMessage, { t: "board" }>[] = [];
   oks: Extract<ServerMessage, { t: "ok" }>[] = [];
+  tallies: Extract<ServerMessage, { t: "tally" }>[] = [];
 
   constructor() {
     this.ws = new WebSocket(`ws://127.0.0.1:${PORT}/api/play`);
@@ -34,6 +36,7 @@ class Client {
       const m = JSON.parse(String(e.data)) as ServerMessage;
       if (m.t === "board") this.boards.push(m);
       if (m.t === "ok") this.oks.push(m);
+      if (m.t === "tally") this.tallies.push(m);
     });
   }
   open() {
@@ -116,4 +119,63 @@ test("everyone crosses a boundary onto the same new board", async () => {
   expect(after[0][0].board).not.toEqual(before[0].board);
 
   for (const c of crowd) c.ws.close();
+}, 300_000);
+
+test("a word nobody else found is worth double, settled when the round ends", async () => {
+  // Uniqueness cannot be known while the round runs — someone may still find it —
+  // so it is settled at the boundary, which is why this lives here.
+  for (;;) {
+    const { phase, remainingMs } = roundAt(Date.now());
+    if (phase === "playing" && remainingMs > 12_000 && remainingMs < 100_000) break;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+
+  const [ada, grace] = [new Client(), new Client()];
+  await Promise.all([ada.open(), grace.open()]);
+  ada.send({ t: "hello", name: "ada" });
+  grace.send({ t: "hello", name: "grace" });
+  const dealt = await Promise.all(
+    [ada.boards, grace.boards].map(async (_, i) => {
+      const c = i === 0 ? ada : grace;
+      for (let k = 0; k < 80 && c.boards.length === 0; k++)
+        await new Promise((r) => setTimeout(r, 250));
+      return c.boards.at(-1)!;
+    }),
+  );
+  expect(dealt[0].board).toEqual(dealt[1].board);
+
+  const words = [...solveBoard(dealt[0].board, trie)].filter((w) => w !== dealt[0].bonus?.gloss);
+  expect(words.length).toBeGreaterThan(4);
+  const shared = words[0];
+  const onlyAda = words[1];
+  const onlyGrace = words[2];
+
+  for (const [c, list] of [
+    [ada, [shared, onlyAda]],
+    [grace, [shared, onlyGrace]],
+  ] as const) {
+    for (const w of list) {
+      c.send({ t: "word", w });
+      await new Promise((r) => setTimeout(r, 150));
+    }
+  }
+
+  const startRound = dealt[0].round;
+  const boundary = (startRound + 1) * ROUND_MS;
+  await new Promise((r) => setTimeout(r, Math.max(0, boundary - Date.now()) + 5000));
+
+  for (const [name, c, mine] of [
+    ["ada", ada, onlyAda],
+    ["grace", grace, onlyGrace],
+  ] as const) {
+    const tally = c.tallies.find((t) => t.round === startRound);
+    expect(tally, `${name} received no tally`).toBeDefined();
+    expect(tally!.unique, `${name}'s unique words`).toEqual([mine]);
+    // Double means one extra helping of the word's own score.
+    expect(tally!.uniqueBonus).toBe(scoreWord(mine));
+    expect(tally!.score).toBe(scoreWord(shared) + scoreWord(mine) * 2);
+  }
+
+  ada.ws.close();
+  grace.ws.close();
 }, 300_000);

@@ -11,6 +11,8 @@ import { readFileSync } from "node:fs";
 import { chromium, type Browser } from "playwright";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { roundAt } from "../src/game/schedule";
+import { pickBonus, type BonusCandidate } from "../src/game/bonus";
+import { BONUS_MULTIPLIER, scoreWord } from "../src/game/scoring";
 import { solveBoard } from "../src/game/solver";
 import { Trie } from "../src/game/trie";
 import { seedReturningPlayer } from "./pagesetup";
@@ -22,6 +24,7 @@ const URL = `http://127.0.0.1:${PORT}/`;
 let worker: ChildProcess | null = null;
 let browser: Browser;
 const trie = new Trie(readFileSync("public/data/words.txt", "utf8").split("\n"));
+const bonusList = JSON.parse(readFileSync("public/data/bonus.json", "utf8")) as BonusCandidate[];
 
 function startWorker() {
   // Its own process group: `npx` spawns node which spawns workerd, and signalling
@@ -143,8 +146,12 @@ test("restarting the room mid-round keeps the board, the words and the score", a
     },
   );
   const score = Number(await page.locator(".ladder__score").first().textContent());
+  // Ask the scoring rules rather than restating them: a copy of the table here
+  // just goes stale the next time they change. The bonus word pays double, and
+  // these are the longest words on the board, so it may well be among them.
+  const bonus = pickBonus(before, bonusList);
   const expected = picks.reduce(
-    (n, w) => n + (w.length >= 8 ? 11 : [0, 0, 0, 0, 1, 2, 3, 5][w.length]),
+    (n, w) => n + scoreWord(w) * (w === bonus?.word ? BONUS_MULTIPLIER : 1),
     0,
   );
   expect(score, `expected the round's ${expected} points back`).toBe(expected);

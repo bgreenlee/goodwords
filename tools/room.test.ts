@@ -2,6 +2,7 @@ import { rmSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { solveBoard } from "../src/game/solver";
+import { pickBonus, type BonusCandidate } from "../src/game/bonus";
 import { Trie } from "../src/game/trie";
 import { scoreWord } from "../src/game/scoring";
 import { roundAt } from "../src/game/schedule";
@@ -16,6 +17,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 let server: ReturnType<typeof spawn>;
 
 const trie = new Trie(readFileSync("public/data/words.txt", "utf8").split("\n"));
+const bonusList = JSON.parse(readFileSync("public/data/bonus.json", "utf8")) as BonusCandidate[];
 
 /** A websocket wrapper that queues messages so tests can await them in order. */
 class Client {
@@ -270,4 +272,45 @@ test("a browser without an id still plays, and is not merged with anyone", async
 
   a.ws.close();
   b.ws.close();
+}, 90_000);
+
+test("the round is named for a word, and the clue is its definition", async () => {
+  await waitForPlayTime(20_000);
+  const c = new Client();
+  await c.open();
+  c.send({ t: "hello", name: "hunter", id: randomUUID() });
+  const dealt = await c.next("board");
+
+  const expected = pickBonus(dealt.board, bonusList);
+  if (!expected) {
+    // Two boards in a hundred can spell nothing worth naming.
+    expect(dealt.bonus).toBeNull();
+    c.ws.close();
+    return;
+  }
+
+  expect(dealt.bonus).not.toBeNull();
+  expect(dealt.bonus!.length).toBe(expected.word.length);
+  expect(dealt.bonus!.gloss).toBe(expected.gloss);
+  // The clue is the definition. The word itself is the puzzle.
+  expect(JSON.stringify(dealt.bonus)).not.toContain(expected.word);
+
+  // An ordinary word is scored plainly.
+  const plain = [...solveBoard(dealt.board, trie)].find(
+    (w) => w !== expected.word && w.length === 4,
+  )!;
+  c.send({ t: "word", w: plain });
+  const ordinary = await c.next("ok");
+  expect(ordinary.points).toBe(scoreWord(plain));
+  expect(ordinary.bonus).toBeUndefined();
+
+  // The named word pays double and says so.
+  c.send({ t: "word", w: expected.word });
+  const hit = await c.next("ok");
+  expect(hit.w).toBe(expected.word);
+  expect(hit.bonus).toBe(true);
+  expect(hit.points).toBe(scoreWord(expected.word) * 2);
+  expect(hit.score).toBe(ordinary.points + hit.points);
+
+  c.ws.close();
 }, 90_000);

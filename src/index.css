@@ -302,6 +302,61 @@ body {
     color 90ms ease;
 }
 
+/* ---- bonus word ---- */
+
+.clue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin-top: 12px;
+  padding: 9px 12px;
+  background: var(--tile);
+  border-radius: 8px;
+  font-size: 14px;
+  transition: background 0.4s ease;
+}
+
+.clue--found {
+  background: var(--accent-soft);
+}
+
+.clue__tag {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.clue--found .clue__tag {
+  color: var(--accent);
+}
+
+.clue__word {
+  font-weight: 650;
+  color: var(--accent);
+  text-transform: lowercase;
+}
+
+.clue__word--missed {
+  color: var(--ink-soft);
+}
+
+.clue__pos {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.clue__gloss {
+  flex: 1 1 100%;
+  font-family: var(--serif);
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
 /* ---- word entry ---- */
 
 .entry {
