@@ -5,7 +5,7 @@ import { solveBoard } from "../src/game/solver";
 import { pickBonus, type BonusCandidate } from "../src/game/bonus";
 import { Trie } from "../src/game/trie";
 import { scoreWord } from "../src/game/scoring";
-import { roundAt } from "../src/game/schedule";
+import { BREAK_MS, roundAt } from "../src/game/schedule";
 import { readFileSync } from "node:fs";
 import type { ServerMessage } from "../src/net/protocol";
 import { randomUUID } from "node:crypto";
@@ -73,6 +73,14 @@ class Client {
  * The server scores against the real clock, so wait for a round with enough play
  * left to finish in. Without this the suite would fail during every break.
  */
+/**
+ * A test's time budget. `waitForPlayTime(min)` blocks until a round has `min` left
+ * to play, which in the worst case means sitting through a whole break first —
+ * time the test spends before it does any work. A budget that covers only the work
+ * leaves the test to pass or fail on where in the round CI happened to start.
+ */
+const budget = (minMs: number, workMs: number) => BREAK_MS + minMs + workMs;
+
 async function waitForPlayTime(minMs = 25_000) {
   for (;;) {
     const { phase, remainingMs } = roundAt(Date.now());
@@ -122,203 +130,223 @@ test("players arriving together are dealt one board, not one each", async () => 
   for (const c of crowd) c.ws.close();
 }, 60_000);
 
-test("the room deals a board, scores real words, and rejects the rest", async () => {
-  await waitForPlayTime();
-  const a = new Client();
-  await a.open();
-  a.send({ t: "hello", name: "ada" });
+test(
+  "the room deals a board, scores real words, and rejects the rest",
+  async () => {
+    await waitForPlayTime();
+    const a = new Client();
+    await a.open();
+    a.send({ t: "hello", name: "ada" });
 
-  const dealt = await a.next("board");
-  expect(dealt.board).toHaveLength(25);
-  expect(dealt.round).toBeGreaterThan(0);
-  // The server's clock is the authority; it should be close to ours.
-  expect(Math.abs(dealt.now - Date.now())).toBeLessThan(10_000);
-  expect(dealt.playEndsAt).toBeLessThan(dealt.roundEndsAt);
+    const dealt = await a.next("board");
+    expect(dealt.board).toHaveLength(25);
+    expect(dealt.round).toBeGreaterThan(0);
+    // The server's clock is the authority; it should be close to ours.
+    expect(Math.abs(dealt.now - Date.now())).toBeLessThan(10_000);
+    expect(dealt.playEndsAt).toBeLessThan(dealt.roundEndsAt);
 
-  const bonus = pickBonus(dealt.board, bonusList);
-  // Exclude the bonus word: it pays double, which is its own test.
-  const solution = [...solveBoard(dealt.board, trie)].filter((w) => w !== bonus?.word);
-  expect(solution.length).toBeGreaterThan(20);
+    const bonus = pickBonus(dealt.board, bonusList);
+    // Exclude the bonus word: it pays double, which is its own test.
+    const solution = [...solveBoard(dealt.board, trie)].filter((w) => w !== bonus?.word);
+    expect(solution.length).toBeGreaterThan(20);
 
-  const word = solution[0];
-  a.send({ t: "word", w: word });
-  const ok = await a.next("ok");
-  expect(ok.w).toBe(word);
-  expect(ok.points).toBe(scoreWord(word));
-  expect(ok.score).toBe(scoreWord(word));
+    const word = solution[0];
+    a.send({ t: "word", w: word });
+    const ok = await a.next("ok");
+    expect(ok.w).toBe(word);
+    expect(ok.points).toBe(scoreWord(word));
+    expect(ok.score).toBe(scoreWord(word));
 
-  // A word the board cannot spell must be refused however the client asks.
-  a.send({ t: "word", w: "zzzzq" });
-  expect((await a.next("no")).reason).toContain("not on this board");
+    // A word the board cannot spell must be refused however the client asks.
+    a.send({ t: "word", w: "zzzzq" });
+    expect((await a.next("no")).reason).toContain("not on this board");
 
-  a.send({ t: "word", w: word });
-  expect((await a.next("no")).reason).toContain("already found");
+    a.send({ t: "word", w: word });
+    expect((await a.next("no")).reason).toContain("already found");
 
-  // A second player sees the same board and both appear on the leaderboard.
-  const b = new Client();
-  await b.open();
-  b.send({ t: "hello", name: "grace" });
-  const dealtB = await b.next("board");
-  expect(dealtB.board).toEqual(dealt.board);
-  expect(dealtB.round).toBe(dealt.round);
-  expect(dealtB.you).not.toBe(dealt.you);
+    // A second player sees the same board and both appear on the leaderboard.
+    const b = new Client();
+    await b.open();
+    b.send({ t: "hello", name: "grace" });
+    const dealtB = await b.next("board");
+    expect(dealtB.board).toEqual(dealt.board);
+    expect(dealtB.round).toBe(dealt.round);
+    expect(dealtB.you).not.toBe(dealt.you);
 
-  const other = solution.find((w) => w !== word && scoreWord(w) > scoreWord(word)) ?? solution[1];
-  b.send({ t: "word", w: other });
-  await b.next("ok");
+    const other = solution.find((w) => w !== word && scoreWord(w) > scoreWord(word)) ?? solution[1];
+    b.send({ t: "word", w: other });
+    await b.next("ok");
 
-  const board = await b.next("lb");
-  expect(board.players).toBeGreaterThanOrEqual(2);
-  const names = board.top.map((r) => r.name);
-  expect(names).toContain("ada");
-  expect(names).toContain("grace");
-  // Ranking is by score, highest first.
-  const scores = board.top.map((r) => r.score);
-  expect([...scores].sort((x, y) => y - x)).toEqual(scores);
+    const board = await b.next("lb");
+    expect(board.players).toBeGreaterThanOrEqual(2);
+    const names = board.top.map((r) => r.name);
+    expect(names).toContain("ada");
+    expect(names).toContain("grace");
+    // Ranking is by score, highest first.
+    const scores = board.top.map((r) => r.score);
+    expect([...scores].sort((x, y) => y - x)).toEqual(scores);
 
-  a.ws.close();
-  b.ws.close();
-}, 90_000);
+    a.ws.close();
+    b.ws.close();
+  },
+  budget(25_000, 75_000),
+);
 
-test("a flood of guesses is throttled rather than scored", async () => {
-  await waitForPlayTime(10_000);
-  const c = new Client();
-  await c.open();
-  c.send({ t: "hello", name: "bot" });
-  const dealt = await c.next("board");
-  const solution = [...solveBoard(dealt.board, trie)];
-  // The room deals a random board and some are lean — one came in at 24 words. The
-  // limit is ten a second, so a flood only has to comfortably exceed that.
-  expect(solution.length).toBeGreaterThan(12);
-  const flood = solution.slice(0, 25);
+test(
+  "a flood of guesses is throttled rather than scored",
+  async () => {
+    await waitForPlayTime(10_000);
+    const c = new Client();
+    await c.open();
+    c.send({ t: "hello", name: "bot" });
+    const dealt = await c.next("board");
+    const solution = [...solveBoard(dealt.board, trie)];
+    // The room deals a random board and some are lean — one came in at 24 words. The
+    // limit is ten a second, so a flood only has to comfortably exceed that.
+    expect(solution.length).toBeGreaterThan(12);
+    const flood = solution.slice(0, 25);
 
-  // Paste them all at once, which no person can type.
-  for (const w of flood) c.send({ t: "word", w });
+    // Paste them all at once, which no person can type.
+    for (const w of flood) c.send({ t: "word", w });
 
-  let accepted = 0;
-  let throttled = 0;
-  const deadline = Date.now() + 4000;
-  while (accepted + throttled < flood.length && Date.now() < deadline) {
-    const msg = await Promise.race([
-      c
-        .next("ok", 1500)
-        .then((m) => m as ServerMessage)
-        .catch(() => null),
-      c
-        .next("no", 1500)
-        .then((m) => m as ServerMessage)
-        .catch(() => null),
-    ]);
-    if (!msg) break;
-    if (msg.t === "ok") accepted++;
-    else if (msg.t === "no" && msg.reason === "too fast") throttled++;
-  }
-  expect(throttled, `accepted ${accepted}, throttled ${throttled}`).toBeGreaterThan(0);
-  c.ws.close();
-}, 90_000);
-
-test("a day's standings outlive the connection that earned them", async () => {
-  await waitForPlayTime(20_000);
-  // A fresh id each run: the object keeps its SQLite between runs, as it should.
-  const me = randomUUID();
-
-  const first = new Client();
-  await first.open();
-  first.send({ t: "hello", name: "ada", id: me });
-  const dealt = await first.next("board");
-  const solution = [...solveBoard(dealt.board, trie)];
-
-  const word = solution.reduce((a, b) => (scoreWord(b) > scoreWord(a) ? b : a));
-  first.send({ t: "word", w: word });
-  const ok = await first.next("ok");
-  // The highest-scoring word on a board is usually also the bonus word, which
-  // pays double — so take what the room awarded rather than restating the rules.
-  expect(ok.points).toBeGreaterThanOrEqual(scoreWord(word));
-  expect(ok.score).toBe(ok.points);
-
-  // Closing the tab must not throw the round away.
-  first.ws.close();
-  await new Promise((r) => setTimeout(r, 500));
-
-  const again = new Client();
-  await again.open();
-  again.send({ t: "hello", name: "ada", id: me });
-  await again.next("board");
-
-  const day = await again.next("daily");
-  const mine = day.top.find((row) => row.id === me);
-  expect(mine, `no entry for ${me} in ${JSON.stringify(day.top)}`).toBeDefined();
-  expect(mine!.name).toBe("ada");
-  expect(mine!.total).toBe(ok.points);
-  expect(mine!.rounds).toBe(1);
-  expect(mine!.best).toBe(ok.points);
-
-  // Standings are ordered by total, highest first.
-  const totals = day.top.map((r) => r.total);
-  expect([...totals].sort((a, b) => b - a)).toEqual(totals);
-  expect(day.since).toBeLessThan(Date.now());
-
-  again.ws.close();
-}, 90_000);
-
-test("a browser without an id still plays, and is not merged with anyone", async () => {
-  await waitForPlayTime(15_000);
-  const a = new Client();
-  const b = new Client();
-  await Promise.all([a.open(), b.open()]);
-  // No id offered: the room falls back to the connection, which is unique.
-  a.send({ t: "hello", name: "one" });
-  b.send({ t: "hello", name: "two" });
-  const [da, db] = await Promise.all([a.next("board"), b.next("board")]);
-  expect(da.you).not.toBe(db.you);
-
-  const solution = [...solveBoard(da.board, trie)];
-  a.send({ t: "word", w: solution[0] });
-  await a.next("ok");
-  const lb = await a.next("lb");
-  expect(lb.top.filter((r) => r.name === "one")).toHaveLength(1);
-
-  a.ws.close();
-  b.ws.close();
-}, 90_000);
-
-test("the round is named for a word, and the clue is its definition", async () => {
-  await waitForPlayTime(20_000);
-  const c = new Client();
-  await c.open();
-  c.send({ t: "hello", name: "hunter", id: randomUUID() });
-  const dealt = await c.next("board");
-
-  const expected = pickBonus(dealt.board, bonusList);
-  if (!expected) {
-    // Two boards in a hundred can spell nothing worth naming.
-    expect(dealt.bonus).toBeNull();
+    let accepted = 0;
+    let throttled = 0;
+    const deadline = Date.now() + 4000;
+    while (accepted + throttled < flood.length && Date.now() < deadline) {
+      const msg = await Promise.race([
+        c
+          .next("ok", 1500)
+          .then((m) => m as ServerMessage)
+          .catch(() => null),
+        c
+          .next("no", 1500)
+          .then((m) => m as ServerMessage)
+          .catch(() => null),
+      ]);
+      if (!msg) break;
+      if (msg.t === "ok") accepted++;
+      else if (msg.t === "no" && msg.reason === "too fast") throttled++;
+    }
+    expect(throttled, `accepted ${accepted}, throttled ${throttled}`).toBeGreaterThan(0);
     c.ws.close();
-    return;
-  }
+  },
+  budget(10_000, 75_000),
+);
 
-  expect(dealt.bonus).not.toBeNull();
-  expect(dealt.bonus!.length).toBe(expected.word.length);
-  expect(dealt.bonus!.gloss).toBe(expected.gloss);
-  // The clue is the definition. The word itself is the puzzle.
-  expect(JSON.stringify(dealt.bonus)).not.toContain(expected.word);
+test(
+  "a day's standings outlive the connection that earned them",
+  async () => {
+    await waitForPlayTime(20_000);
+    // A fresh id each run: the object keeps its SQLite between runs, as it should.
+    const me = randomUUID();
 
-  // An ordinary word is scored plainly.
-  const plain = [...solveBoard(dealt.board, trie)].find(
-    (w) => w !== expected.word && w.length === 4,
-  )!;
-  c.send({ t: "word", w: plain });
-  const ordinary = await c.next("ok");
-  expect(ordinary.points).toBe(scoreWord(plain));
-  expect(ordinary.bonus).toBeUndefined();
+    const first = new Client();
+    await first.open();
+    first.send({ t: "hello", name: "ada", id: me });
+    const dealt = await first.next("board");
+    const solution = [...solveBoard(dealt.board, trie)];
 
-  // The named word pays double and says so.
-  c.send({ t: "word", w: expected.word });
-  const hit = await c.next("ok");
-  expect(hit.w).toBe(expected.word);
-  expect(hit.bonus).toBe(true);
-  expect(hit.points).toBe(scoreWord(expected.word) * 2);
-  expect(hit.score).toBe(ordinary.points + hit.points);
+    const word = solution.reduce((a, b) => (scoreWord(b) > scoreWord(a) ? b : a));
+    first.send({ t: "word", w: word });
+    const ok = await first.next("ok");
+    // The highest-scoring word on a board is usually also the bonus word, which
+    // pays double — so take what the room awarded rather than restating the rules.
+    expect(ok.points).toBeGreaterThanOrEqual(scoreWord(word));
+    expect(ok.score).toBe(ok.points);
 
-  c.ws.close();
-}, 90_000);
+    // Closing the tab must not throw the round away.
+    first.ws.close();
+    await new Promise((r) => setTimeout(r, 500));
+
+    const again = new Client();
+    await again.open();
+    again.send({ t: "hello", name: "ada", id: me });
+    await again.next("board");
+
+    const day = await again.next("daily");
+    const mine = day.top.find((row) => row.id === me);
+    expect(mine, `no entry for ${me} in ${JSON.stringify(day.top)}`).toBeDefined();
+    expect(mine!.name).toBe("ada");
+    expect(mine!.total).toBe(ok.points);
+    expect(mine!.rounds).toBe(1);
+    expect(mine!.best).toBe(ok.points);
+
+    // Standings are ordered by total, highest first.
+    const totals = day.top.map((r) => r.total);
+    expect([...totals].sort((a, b) => b - a)).toEqual(totals);
+    expect(day.since).toBeLessThan(Date.now());
+
+    again.ws.close();
+  },
+  budget(20_000, 75_000),
+);
+
+test(
+  "a browser without an id still plays, and is not merged with anyone",
+  async () => {
+    await waitForPlayTime(15_000);
+    const a = new Client();
+    const b = new Client();
+    await Promise.all([a.open(), b.open()]);
+    // No id offered: the room falls back to the connection, which is unique.
+    a.send({ t: "hello", name: "one" });
+    b.send({ t: "hello", name: "two" });
+    const [da, db] = await Promise.all([a.next("board"), b.next("board")]);
+    expect(da.you).not.toBe(db.you);
+
+    const solution = [...solveBoard(da.board, trie)];
+    a.send({ t: "word", w: solution[0] });
+    await a.next("ok");
+    const lb = await a.next("lb");
+    expect(lb.top.filter((r) => r.name === "one")).toHaveLength(1);
+
+    a.ws.close();
+    b.ws.close();
+  },
+  budget(15_000, 75_000),
+);
+
+test(
+  "the round is named for a word, and the clue is its definition",
+  async () => {
+    await waitForPlayTime(20_000);
+    const c = new Client();
+    await c.open();
+    c.send({ t: "hello", name: "hunter", id: randomUUID() });
+    const dealt = await c.next("board");
+
+    const expected = pickBonus(dealt.board, bonusList);
+    if (!expected) {
+      // Two boards in a hundred can spell nothing worth naming.
+      expect(dealt.bonus).toBeNull();
+      c.ws.close();
+      return;
+    }
+
+    expect(dealt.bonus).not.toBeNull();
+    expect(dealt.bonus!.length).toBe(expected.word.length);
+    expect(dealt.bonus!.gloss).toBe(expected.gloss);
+    // The clue is the definition. The word itself is the puzzle.
+    expect(JSON.stringify(dealt.bonus)).not.toContain(expected.word);
+
+    // An ordinary word is scored plainly.
+    const plain = [...solveBoard(dealt.board, trie)].find(
+      (w) => w !== expected.word && w.length === 4,
+    )!;
+    c.send({ t: "word", w: plain });
+    const ordinary = await c.next("ok");
+    expect(ordinary.points).toBe(scoreWord(plain));
+    expect(ordinary.bonus).toBeUndefined();
+
+    // The named word pays double and says so.
+    c.send({ t: "word", w: expected.word });
+    const hit = await c.next("ok");
+    expect(hit.w).toBe(expected.word);
+    expect(hit.bonus).toBe(true);
+    expect(hit.points).toBe(scoreWord(expected.word) * 2);
+    expect(hit.score).toBe(ordinary.points + hit.points);
+
+    c.ws.close();
+  },
+  budget(20_000, 75_000),
+);

@@ -8,7 +8,7 @@ import {
   rotatedOrder,
   BOARD_SIZE,
 } from "./dice";
-import { roundAt, PLAY_MS, ROUND_MS } from "./schedule";
+import { roundAt, BREAK_MS, PLAY_MS, ROUND_MS } from "./schedule";
 import { scoreWord } from "./scoring";
 import { pickBonus } from "./bonus";
 import { teachableFrom } from "./vocab";
@@ -96,6 +96,28 @@ describe("schedule", () => {
       expect(s.remainingMs).toBeLessThanOrEqual(
         s.phase === "playing" ? PLAY_MS : ROUND_MS - PLAY_MS,
       );
+    }
+  });
+
+  // The browser tests wait for a round with enough play time left before they
+  // start, and their time budgets are that wait plus the work. This is the wait's
+  // ceiling, so a budget built on it holds wherever in the round a run begins.
+  test("waiting for play time never takes longer than a break plus what it asks for", () => {
+    const wait = (from: number, minMs: number) => {
+      for (let t = from; t < from + 2 * ROUND_MS; t += 250) {
+        const s = roundAt(t);
+        if (s.phase === "playing" && s.remainingMs > minMs) return t - from;
+      }
+      throw new Error("never reached play time");
+    };
+    // Every value the browser tests pass, and then some, so adding a call site does
+    // not quietly rest the budgets on an unchecked claim.
+    for (let minMs = 5_000; minMs < PLAY_MS; minMs += 5_000) {
+      let worst = 0;
+      for (let from = 0; from < ROUND_MS; from += 250) {
+        worst = Math.max(worst, wait(from, minMs));
+      }
+      expect(worst, `waiting for ${minMs}ms of play`).toBeLessThanOrEqual(BREAK_MS + minMs);
     }
   });
 });
