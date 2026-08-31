@@ -365,6 +365,18 @@ markers that label the *word* a slur, rather than any gloss that mentions such
 language: "slur" and "ligature" both keep their musical definitions, and a
 disparaging *remark* is not a disparaging *term*.
 
+`./checkword <word>` says how the game sees a word: whether it can be played,
+whether it is taught in the missed-words column and whether it can name a round,
+along with its frequency and, when it is an inflection, the root it is taught
+through. When there is a definition to be had it prints the line to paste into
+`added.txt`, which is the quickest way to give a word a definition it lacks —
+"aspersion" is playable but never taught, because its frequency sits just under
+the floor, and `checkword` hands you the line that fixes that. It reads the built
+data, so it answers for the game as it currently ships, and falls back to WordNet
+only for words the shipped data cannot define. That fallback needs `data/dict`,
+and it says so rather than reporting a word as undefined when it simply did not
+look.
+
 `npm run review-words` lists the words with a marked sense, and shows what the
 game teaches instead, so it is obvious which are already handled. It excludes
 nothing. Exclude a word when the word itself is the problem however you define

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Look a word up the way the game sees it. See tools/checkword.py.
+exec python3 "$(dirname "$0")/tools/checkword.py" "$@"

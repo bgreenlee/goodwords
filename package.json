@@ -25,7 +25,8 @@
     "destroy:loadtest": "wrangler delete -c wrangler.loadtest.jsonc",
     "loadbig": "vitest run tools/loadbig.test.ts",
     "wordlist": "python3 tools/wordlist.py",
-    "review-words": "python3 tools/review_words.py"
+    "review-words": "python3 tools/review_words.py",
+    "checkword": "python3 tools/checkword.py"
   },
   "dependencies": {
     "react": "^19.1.0",

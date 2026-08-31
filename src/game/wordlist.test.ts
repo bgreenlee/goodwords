@@ -281,6 +281,39 @@ function inflectionsOf(word: string): string[] {
   return out;
 }
 
+describe("checkword", () => {
+  const check = (...words: string[]) =>
+    spawnSync("python3", ["tools/checkword.py", ...words], { encoding: "utf8" });
+
+  test.skipIf(!hasPython())("reports how the game sees a word", () => {
+    const [word, entry] = Object.entries(vocab.defs).find(
+      ([w, e]) => dictionary.has(w) && bonusWords.has(w) && !e.includes("\n"),
+    )!;
+    const run = check(word, "zzzznotaword", excluded[0]);
+    expect(run.status, run.stderr).toBe(0);
+    const out = run.stdout;
+
+    // A word with a definition prints the line to paste into added.txt.
+    const [pos, gloss] = entry.split(/\|(.*)/s);
+    expect(out).toContain(`${word} | ${pos} | ${gloss}`);
+    expect(out).toContain("can name a round");
+
+    expect(out).toContain("not in the dictionary");
+    expect(out).toContain("excluded by hand");
+  });
+
+  test.skipIf(!hasPython())("the line it prints is one added.txt would accept", () => {
+    const run = check("queen");
+    const line = run.stdout.split("\n").find((l) => l.trim().startsWith("queen |"))!;
+    expect(line, "no added.txt line printed").toBeDefined();
+    const parts = line.split("|").map((p) => p.trim());
+    expect(parts).toHaveLength(3);
+    expect(parts[0]).toBe("queen");
+    expect(parts[1].length).toBeGreaterThan(0);
+    expect(parts[2].length).toBeGreaterThan(0);
+  });
+});
+
 function hasPython(): boolean {
   if (process.env.CI) return true;
   return spawnSync("python3", ["--version"]).status === 0;
