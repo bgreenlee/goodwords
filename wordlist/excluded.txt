@@ -8,10 +8,69 @@
 # Say why. The reason is the useful part of the record, and the next person to
 # read this file will want it.
 
-# Reported by a player: a slur for people with dwarfism.
+# a slur for people with dwarfism.
 midget
 
 # A medical slur. WordNet's own gloss says "no longer used technically in this
 # sense", but the marker filter cannot see that, and the unmarked sense would
 # otherwise let this name a round.
 mongoloid
+
+bastard
+bunghole
+faggot
+hillbilly
+mongrel
+papist
+pecker
+peewee
+popery
+arse
+asshole
+cunt
+dick
+fagot
+fanny
+mammy
+nance
+pansy
+pommy
+pouf
+pussy
+putz
+shit
+squaw
+turd
+twat
+boche
+bushwhacker
+butch
+chink
+coolie
+cooly
+dago
+dyke
+greaseball
+greaser
+jerry
+kike
+kraut
+marrano
+mick
+mickey
+mongoloid
+nazi
+paddy
+picaninny
+pickaninny
+placeman
+poove
+redskin
+sheeny
+shegetz
+shiksa
+shikse
+spic
+spick
+spik
+wetback

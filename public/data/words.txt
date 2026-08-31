@@ -8208,7 +8208,6 @@ arrowworms
 arrowy
 arroyo
 arroyos
-arse
 arsenal
 arsenals
 arsenate
@@ -8226,7 +8225,6 @@ arseno
 arsenopyrite
 arsenopyrites
 arsenous
-arses
 arshin
 arshins
 arsine
@@ -8750,7 +8748,6 @@ asseverating
 asseveration
 asseverations
 asseverative
-asshole
 assholes
 assiduities
 assiduity
@@ -11899,7 +11896,6 @@ basswood
 basswoods
 bassy
 bast
-bastard
 bastardies
 bastardise
 bastardised
@@ -11912,7 +11908,6 @@ bastardized
 bastardizes
 bastardizing
 bastardly
-bastards
 bastardy
 baste
 basted
@@ -16059,7 +16054,6 @@ boccias
 boccie
 boccies
 boccis
-boche
 boches
 bock
 bocks
@@ -18932,8 +18926,6 @@ bungalows
 bunged
 bungee
 bungees
-bunghole
-bungholes
 bunging
 bungle
 bungled
@@ -19292,7 +19284,6 @@ bushwahs
 bushwas
 bushwhack
 bushwhacked
-bushwhacker
 bushwhackers
 bushwhacking
 bushwhacks
@@ -19371,7 +19362,6 @@ butanol
 butanols
 butanone
 butanones
-butch
 butcher
 butchered
 butcheries
@@ -19379,7 +19369,6 @@ butchering
 butcherly
 butchers
 butchery
-butches
 bute
 butene
 butenes
@@ -24431,14 +24420,10 @@ chine
 chined
 chines
 chining
-chink
 chinkapin
 chinkapins
-chinked
 chinkier
 chinkiest
-chinking
-chinks
 chinky
 chinless
 chinned
@@ -31219,7 +31204,6 @@ cooler
 coolers
 coolest
 coolheaded
-coolie
 coolies
 cooling
 coolish
@@ -31229,7 +31213,6 @@ coolnesses
 cools
 coolth
 coolths
-cooly
 coomb
 coombe
 coombes
@@ -34865,8 +34848,6 @@ cunningly
 cunningness
 cunningnesses
 cunnings
-cunt
-cunts
 cupbearer
 cupbearers
 cupboard
@@ -35871,7 +35852,6 @@ daggles
 daggling
 daglock
 daglocks
-dago
 dagoba
 dagobas
 dagoes
@@ -40626,7 +40606,6 @@ dichroscopes
 dicier
 diciest
 dicing
-dick
 dickcissel
 dickcissels
 dicked
@@ -40643,7 +40622,6 @@ dickier
 dickies
 dickiest
 dicking
-dicks
 dicky
 diclinies
 diclinous
@@ -45757,11 +45735,7 @@ dyewood
 dyewoods
 dying
 dyings
-dyke
-dyked
-dykes
 dykey
-dyking
 dynamic
 dynamical
 dynamically
@@ -53088,24 +53062,16 @@ faeries
 faery
 fagged
 fagging
-faggot
-faggoted
-faggoting
 faggotings
 faggotries
 faggotry
-faggots
 faggoty
 faggy
 fagin
 fagins
-fagot
-fagoted
 fagoter
 fagoters
-fagoting
 fagotings
-fagots
 fags
 fahlband
 fahlbands
@@ -53408,9 +53374,7 @@ fanlike
 fanned
 fanner
 fanners
-fannies
 fanning
-fanny
 fano
 fanon
 fanons
@@ -63747,7 +63711,6 @@ grazing
 grazings
 grazioso
 grease
-greaseball
 greaseballs
 greased
 greaseless
@@ -63755,7 +63718,6 @@ greasepaint
 greasepaints
 greaseproof
 greaseproofs
-greaser
 greasers
 greases
 greasewood
@@ -68297,7 +68259,6 @@ hildings
 hili
 hill
 hillbillies
-hillbilly
 hillcrest
 hillcrests
 hilled
@@ -78878,7 +78839,6 @@ jerricans
 jerrid
 jerrids
 jerries
-jerry
 jerrycan
 jerrycans
 jersey
@@ -80508,7 +80468,6 @@ kieserites
 kiester
 kiesters
 kifs
-kike
 kikes
 kilderkin
 kilderkins
@@ -81252,7 +81211,6 @@ kraken
 krakens
 krater
 kraters
-kraut
 krauts
 kreep
 kreeps
@@ -87327,7 +87285,6 @@ mammets
 mammey
 mammeys
 mammie
-mammies
 mammilla
 mammillae
 mammillary
@@ -87351,7 +87308,6 @@ mammonists
 mammons
 mammoth
 mammoths
-mammy
 mana
 manacle
 manacled
@@ -88050,7 +88006,6 @@ marquisette
 marquisettes
 marram
 marrams
-marrano
 marranos
 marred
 marrer
@@ -90409,8 +90364,6 @@ miche
 miched
 miches
 miching
-mick
-mickey
 mickeys
 mickle
 mickler
@@ -93481,14 +93434,12 @@ mongols
 mongoose
 mongooses
 mongos
-mongrel
 mongrelization
 mongrelizations
 mongrelize
 mongrelized
 mongrelizes
 mongrelizing
-mongrels
 mongst
 monicker
 monickers
@@ -96100,7 +96051,6 @@ nametags
 naming
 nana
 nanas
-nance
 nances
 nancies
 nancy
@@ -96494,7 +96444,6 @@ nawabs
 nays
 naysayer
 naysayers
-nazi
 nazification
 nazifications
 nazified
@@ -106235,7 +106184,6 @@ padauks
 padded
 padder
 padders
-paddies
 padding
 paddings
 paddle
@@ -106257,7 +106205,6 @@ paddock
 paddocked
 paddocking
 paddocks
-paddy
 padi
 padis
 padishah
@@ -106945,10 +106892,8 @@ pans
 pansexual
 pansexualities
 pansexuality
-pansies
 pansophies
 pansophy
-pansy
 pant
 pantalets
 pantalettes
@@ -107087,11 +107032,9 @@ papillons
 papillose
 papillote
 papillotes
-papist
 papistic
 papistries
 papistry
-papists
 papoose
 papooses
 papovavirus
@@ -108630,8 +108573,6 @@ peching
 pechs
 peck
 pecked
-pecker
-peckers
 peckerwood
 peckerwoods
 peckier
@@ -108871,8 +108812,6 @@ peevish
 peevishly
 peevishness
 peevishnesses
-peewee
-peewees
 peewit
 peewits
 pegboard
@@ -111569,7 +111508,6 @@ picadores
 picadors
 pical
 picaninnies
-picaninny
 picara
 picaras
 picaresque
@@ -111601,7 +111539,6 @@ pickabacks
 pickadil
 pickadils
 pickaninnies
-pickaninny
 pickaroon
 pickaroons
 pickax
@@ -112633,7 +112570,6 @@ placekicking
 placekicks
 placeless
 placelessly
-placeman
 placemen
 placement
 placements
@@ -114426,7 +114362,6 @@ pommelling
 pommels
 pommie
 pommies
-pommy
 pomological
 pomologies
 pomologist
@@ -114570,7 +114505,6 @@ poorness
 poornesses
 poortith
 poortiths
-poove
 pooves
 popcorn
 popcorns
@@ -114580,7 +114514,6 @@ popedoms
 popeless
 popelike
 poperies
-popery
 popes
 popeyed
 popgun
@@ -115367,14 +115300,12 @@ pouchier
 pouchiest
 pouching
 pouchy
-pouf
 poufed
 pouff
 pouffe
 pouffed
 pouffes
 pouffs
-poufs
 poulard
 poularde
 poulardes
@@ -120292,15 +120223,11 @@ pusleys
 puslike
 puss
 pusses
-pussier
-pussies
-pussiest
 pussley
 pussleys
 pusslies
 pusslike
 pussly
-pussy
 pussycat
 pussycats
 pussyfoot
@@ -120377,9 +120304,7 @@ puttyless
 puttylike
 puttyroot
 puttyroots
-putz
 putzed
-putzes
 putzing
 puzzle
 puzzled
@@ -124497,7 +124422,6 @@ redshirt
 redshirted
 redshirting
 redshirts
-redskin
 redskins
 redstart
 redstarts
@@ -136741,7 +136665,6 @@ shashlik
 shashliks
 shaslik
 shasliks
-shat
 shatter
 shattered
 shattering
@@ -136844,7 +136767,6 @@ sheenies
 sheeniest
 sheening
 sheens
-sheeny
 sheep
 sheepberries
 sheepberry
@@ -136897,7 +136819,6 @@ sheetlike
 sheets
 sheeve
 sheeves
-shegetz
 sheik
 sheikdom
 sheikdoms
@@ -137093,9 +137014,7 @@ shikarring
 shikars
 shikker
 shikkers
-shiksa
 shiksas
-shikse
 shikses
 shilingi
 shill
@@ -137256,15 +137175,12 @@ shirtwaists
 shirty
 shist
 shists
-shit
 shitake
 shitakes
 shithead
 shitheads
-shits
 shittah
 shittahs
-shitted
 shittier
 shittiest
 shittim
@@ -142649,7 +142565,6 @@ sphygmomanometries
 sphygmomanometry
 sphygmus
 sphygmuses
-spic
 spica
 spicae
 spicas
@@ -142662,7 +142577,6 @@ spicebush
 spicebushes
 spiced
 spiceless
-spicer
 spiceries
 spicers
 spicery
@@ -142674,9 +142588,6 @@ spicily
 spiciness
 spicinesses
 spicing
-spick
-spicks
-spics
 spicula
 spiculae
 spicular
@@ -142725,7 +142636,6 @@ spiffs
 spiffy
 spigot
 spigots
-spik
 spike
 spiked
 spikelet
@@ -143736,7 +143646,6 @@ squattier
 squattiest
 squatting
 squatty
-squaw
 squawfish
 squawfishes
 squawk
@@ -158527,7 +158436,6 @@ turbulencies
 turbulency
 turbulent
 turbulently
-turd
 turdine
 turds
 tureen
@@ -158777,8 +158685,6 @@ twanky
 twas
 twasome
 twasomes
-twat
-twats
 twattle
 twattled
 twattles
@@ -168389,7 +168295,6 @@ westmost
 wests
 westward
 westwards
-wetback
 wetbacks
 wether
 wethers
