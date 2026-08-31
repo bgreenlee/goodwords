@@ -335,8 +335,9 @@ than trying the next sense.
 The marker test reads only the definition, never WordNet's quoted examples. An
 example can mention vulgar usage while the definition is clinical, which is how
 "fanny" would otherwise have lost a perfectly good gloss. And it matches only
-markers that label the *word* a slur, so "aspersion" keeps "a disparaging remark",
-which is simply what the word means.
+markers that label the *word* a slur, rather than any gloss that mentions such
+language: "slur" and "ligature" both keep their musical definitions, and a
+disparaging *remark* is not a disparaging *term*.
 
 `npm run review-words` lists the words with a marked sense, and shows what the
 game teaches instead, so it is obvious which are already handled. It excludes
