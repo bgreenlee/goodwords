@@ -93477,8 +93477,6 @@ mongoes
 mongol
 mongolism
 mongolisms
-mongoloid
-mongoloids
 mongols
 mongoose
 mongooses

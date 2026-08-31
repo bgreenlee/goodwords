@@ -10,3 +10,8 @@
 
 # Reported by a player: a slur for people with dwarfism.
 midget
+
+# A medical slur. WordNet's own gloss says "no longer used technically in this
+# sense", but the marker filter cannot see that, and the unmarked sense would
+# otherwise let this name a round.
+mongoloid

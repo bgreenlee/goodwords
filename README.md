@@ -316,12 +316,34 @@ everyone at once. Without this an excluded word would keep being solved and
 taught in returning players' browsers for up to a week, even though the server
 refuses to score it.
 
-`npm run review-words` lists the dictionary words that WordNet's own glosses mark
-as slurs, flagging which of them the game would teach or could name as a round's
-bonus word. It excludes nothing: the list mixes true slurs with words whose
-offensive sense is one of several — "queen", "tool", "fairy" — so the call is a
-human's. It is a supplement rather than a safety net, and it would not have
-caught "midget", whose gloss is the neutral "a person who is markedly small".
+### Which sense a word is taught
+
+Plenty of words have an offensive sense and an ordinary one. `tools/wordnet.py`
+walks a word's senses and teaches the first that WordNet does not mark as a slur,
+so a queen is a monarch, a tool is an implement, a shrimp is a crustacean and a
+faggot is a bundle of sticks. Senses run most common first, so the first clean one
+is also the best one. A word whose every sense is marked gets no definition at
+all, which keeps it out of the vocabulary column and out of the running to name a
+round while leaving it playable.
+
+A sense is skipped, not fatal, and the same is true of proper nouns. That matters
+more than it sounds: "begin", "west", "born", "hunt", "crane" and 478 other
+ordinary words had no definition at all, because their first WordNet sense is a
+name — Menachem Begin, Mae West — and the old code gave up on the word rather
+than trying the next sense.
+
+The marker test reads only the definition, never WordNet's quoted examples. An
+example can mention vulgar usage while the definition is clinical, which is how
+"fanny" would otherwise have lost a perfectly good gloss. And it matches only
+markers that label the *word* a slur, so "aspersion" keeps "a disparaging remark",
+which is simply what the word means.
+
+`npm run review-words` lists the words with a marked sense, and shows what the
+game teaches instead, so it is obvious which are already handled. It excludes
+nothing. Exclude a word when the word itself is the problem however you define
+it — that is a human's call, and it is the only kind left. It is a supplement
+rather than a safety net: it would not have caught "midget", whose gloss is the
+neutral "a person who is markedly small".
 
 ## Deploying
 

@@ -97,12 +97,29 @@ def define(word, index, glosses, exc, max_senses=2):
     return results
 
 
-# WordNet marks socially loaded senses in the gloss itself; we do not want the
-# vocabulary column teaching slurs.
+# WordNet marks socially loaded senses in the gloss itself. Most of those markers
+# are plain prose rather than a parenthetical, so match both. What must not match is
+# a gloss that merely mentions such language: "a disparaging remark" is the correct
+# definition of "aspersion", and a ligature connects notes with a slur.
 FLAGGED = re.compile(
-    r"\((?:ethnic slur|slang|vulgar|obscene|offensive|disparaging|derogatory)",
+    r"\((?:ethnic slur|racial slur|slang|vulgar|obscene|offensive|disparaging|derogatory)"
+    r"|(?:offensive|disparaging|derogatory|obscene|insulting|pejorative)"
+    r"\s+(?:term|terms|name|names|word|words)\b"
+    r"|vulgar slang\b"
+    r"|term of disparagement"
+    r"|used (?:disparagingly|offensively)",
     re.I,
 )
+
+
+def flagged(gloss):
+    """True when the gloss marks the word itself as a slur.
+
+    Only the definition is examined. WordNet appends quoted examples after it, and an
+    example can mention vulgar usage while the definition is clinical — "fanny" is
+    defined as external female sex organs and only its example calls it vulgar slang.
+    """
+    return bool(FLAGGED.search(re.split(r';\s*"', gloss)[0]))
 
 
 def is_proper(word, pos, off, forms):
@@ -118,17 +135,21 @@ def teachable(word, index, glosses, exc, forms):
     The definition to teach for `word`, or None.
 
     Only words that are their own WordNet lemma qualify: an inflection like "snores"
-    or "wafted" teaches nothing its base form does not. Proper nouns and glosses
-    WordNet flags as slurs or slang are excluded.
+    or "wafted" teaches nothing its base form does not.
+
+    Senses that are proper nouns, or that WordNet marks as slurs, are skipped rather
+    than disqualifying the word: many such words have an ordinary sense as well — a
+    queen is a monarch, a tool is an implement — and that is the sense to teach.
+    Senses run most common first, so the first clean one is the best one. A word
+    whose every sense is marked gets no definition, which keeps it out of the
+    vocabulary column and out of the running to name a round.
     """
     for pos in ("n", "v", "a", "r"):
-        if pos not in index.get(word, {}):
-            continue
-        off = index[word][pos][0]
-        gloss = glosses[pos].get(off)
-        if not gloss or FLAGGED.search(gloss):
-            return None
-        if is_proper(word, pos, off, forms):
-            return None
-        return POS_LABEL[pos], gloss
+        for off in index.get(word, {}).get(pos, ()):
+            gloss = glosses[pos].get(off)
+            if not gloss or flagged(gloss):
+                continue
+            if is_proper(word, pos, off, forms):
+                continue
+            return POS_LABEL[pos], gloss
     return None

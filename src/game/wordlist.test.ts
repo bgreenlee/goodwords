@@ -131,6 +131,63 @@ describe("hand-kept word lists", () => {
  * missing interpreter must fail, or these tests would silently disappear from a
  * green build.
  */
+/**
+ * Mirrors FLAGGED in tools/wordnet.py: markers that label the word itself a slur.
+ * Deliberately does not match a gloss that merely mentions such language, because
+ * "a disparaging remark" is the correct definition of "aspersion".
+ */
+const SLUR_MARKER =
+  /\((?:ethnic slur|racial slur|slang|vulgar|obscene|offensive|disparaging|derogatory)|(?:offensive|disparaging|derogatory|obscene|insulting|pejorative)\s+(?:term|terms|name|names|word|words)\b|vulgar slang\b|term of disparagement|used (?:disparagingly|offensively)/i;
+
+/** The definition only. WordNet appends quoted examples, which may mention usage. */
+const definitionOf = (entry: string) => entry.split("|").slice(1).join("|").split(/;\s*"/)[0];
+
+describe("the definitions the game shows", () => {
+  test("none of them is a slur", () => {
+    const bad = Object.entries(vocab.defs).filter(([, entry]) =>
+      SLUR_MARKER.test(definitionOf(entry)),
+    );
+    expect(bad.map(([word]) => word)).toEqual([]);
+  });
+
+  test("no round can be named with a word whose clue is a slur", () => {
+    const bad = bonus.filter(([, entry]) => SLUR_MARKER.test(definitionOf(entry)));
+    expect(bad.map(([word]) => word)).toEqual([]);
+  });
+
+  // A word with an offensive sense and an ordinary one is taught the ordinary one.
+  // WordNet orders senses most common first, so the first clean sense is the best.
+  test("a word with a valid meaning is taught that meaning", () => {
+    const expected: Record<string, RegExp> = {
+      queen: /female|monarch|ruler/i,
+      tool: /implement/i,
+      shrimp: /crustacean/i,
+      pussy: /cat/i,
+      cock: /faucet|rooster/i,
+      taco: /tortilla/i,
+      paddy: /rice/i,
+      faggot: /bundle of sticks/i,
+      chink: /narrow opening/i,
+      dyke: /barrier/i,
+      bunghole: /barrel|cask/i,
+      pecker: /bird/i,
+    };
+    for (const [word, pattern] of Object.entries(expected)) {
+      const entry = vocab.defs[word];
+      expect(entry, `${word} should have a definition`).toBeDefined();
+      expect(definitionOf(entry), `${word} is taught the wrong sense`).toMatch(pattern);
+    }
+  });
+
+  // A proper noun in the first sense used to disqualify the word outright, which
+  // quietly cost ordinary words their definition.
+  test("a name in the first sense does not cost the word its definition", () => {
+    for (const word of ["begin", "west", "born", "hunt", "crane", "badger"]) {
+      expect(vocab.defs[word], `${word} should have a definition`).toBeDefined();
+    }
+  });
+});
+
 function hasPython(): boolean {
   if (process.env.CI) return true;
   return spawnSync("python3", ["--version"]).status === 0;

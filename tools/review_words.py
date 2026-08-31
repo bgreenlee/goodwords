@@ -56,7 +56,9 @@ def main():
     def rank(word):
         return (0 if word in bonus else 1, 0 if word in vocab["defs"] else 1, word)
 
-    print(f"{len(flagged)} dictionary words carry an offensive marker in WordNet.\n")
+    print(f"{len(flagged)} dictionary words have a sense WordNet marks as a slur.")
+    print("The game teaches the first sense that is not marked, so a word with an")
+    print("ordinary meaning shows that instead. What it would show is on the right.\n")
     for word in sorted(flagged, key=rank):
         tags = []
         if word in vocab["defs"]:
@@ -64,8 +66,12 @@ def main():
         if word in bonus:
             tags.append("can name a round")
         label = f"[{', '.join(tags)}]" if tags else "[playable only]"
-        print(f"{word:14s} {label:26s} {flagged[word][:64]}")
-    print("\nNothing was excluded. Move the ones you agree with into wordlist/excluded.txt.")
+        shown = vocab["defs"].get(word)
+        shown = shown.split("|", 1)[1][:52] if shown else "nothing — no clean sense"
+        print(f"{word:14s} {label:26s} {shown}")
+    print("\nNothing was excluded. These are words whose marked sense is hidden, not")
+    print("words the game offers as slurs. Exclude one when the word itself is the")
+    print("problem however it is defined; wordlist/excluded.txt is where it goes.")
 
 
 if __name__ == "__main__":
