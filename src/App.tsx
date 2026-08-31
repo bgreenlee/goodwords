@@ -87,6 +87,12 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   const [soloHit, setSoloHit] = useState<string | null>(null);
   /** Cells tapped so far. Empty means the word is being typed instead. */
   const [selection, setSelection] = useState<number[]>([]);
+  /**
+   * The same list, readable at once. A finger lifting ends a word, and that can
+   * happen before React has re-rendered with the last letter, so the handler
+   * cannot rely on the value it closed over.
+   */
+  const selectionRef = useRef<number[]>([]);
   const [results, setResults] = useState<RoundResults | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   useKeepBoardVisible(inputRef);
@@ -143,6 +149,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     setTraced(null);
     setSoloHit(null);
     setSelection([]);
+    selectionRef.current = [];
   }
 
   // The break is the reveal: score the board that was just played. If the board
@@ -270,12 +277,12 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
         // Focus the box and let the browser deliver the character to it. Appending
         // by hand as well means two writers: with quick typing the manual append
         // can land after several native ones and the letters come out reordered.
-        setSelection([]);
+        chooseCells([]);
         field.focus();
       } else if (event.key === "Backspace") {
         event.preventDefault();
         // Backspace undoes the last tap when a word is being tapped out.
-        setSelection((prev) => (prev.length > 0 ? prev.slice(0, -1) : prev));
+        if (selectionRef.current.length > 0) chooseCells(selectionRef.current.slice(0, -1));
         setEntry((prev) => prev.slice(0, -1));
       } else if (event.key === "Enter") {
         field.focus();
@@ -339,16 +346,31 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   // The word as tapped out, with a Qu tile counting for both its letters.
   const tapped = selection.map((cell) => board[cell].toLowerCase()).join("");
 
+  function chooseCells(next: number[]) {
+    selectionRef.current = next;
+    setSelection(next);
+  }
+
   function tapTile(cell: number) {
     if (!playing) return;
     setEntry("");
-    setSelection((prev) => {
-      // Tapping the last letter takes it back.
-      if (prev[prev.length - 1] === cell) return prev.slice(0, -1);
-      const reachable = reachableFrom(prev);
-      if (reachable !== null && !reachable.has(cell)) return prev;
-      return [...prev, cell];
-    });
+    const prev = selectionRef.current;
+    // Going back takes a letter off. Tapping the last one again is the tapped way
+    // of saying it; drawing back onto the one before is the drawn way, since a
+    // finger never re-enters the letter it is already on.
+    if (prev[prev.length - 1] === cell || prev[prev.length - 2] === cell) {
+      return chooseCells(prev.slice(0, -1));
+    }
+    const reachable = reachableFrom(prev);
+    if (reachable !== null && !reachable.has(cell)) return;
+    chooseCells([...prev, cell]);
+  }
+
+  /** A word drawn in one movement is finished when the finger comes up. */
+  function finishDrawn() {
+    const cells = selectionRef.current;
+    if (cells.length === 0) return;
+    submit(cells.map((cell) => board[cell].toLowerCase()).join(""), cells);
   }
 
   /**
@@ -360,7 +382,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   function submit(raw: string, viaCells?: number[]) {
     const word = raw.trim().toLowerCase();
     setEntry("");
-    setSelection([]);
+    chooseCells([]);
     if (!word) return;
 
     // A refusal shows on the board as well as in words. The letters are where the
@@ -439,6 +461,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
               rotation={rotation}
               selection={playing ? selection : []}
               onTile={playing ? tapTile : undefined}
+              onDrawn={playing ? finishDrawn : undefined}
             />
           )}
 
@@ -473,7 +496,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
                   type="button"
                   className="entry__btn"
                   aria-label="Undo the last letter"
-                  onClick={() => setSelection((prev) => prev.slice(0, -1))}
+                  onClick={() => chooseCells(selectionRef.current.slice(0, -1))}
                 >
                   ⌫
                 </button>

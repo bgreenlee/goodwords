@@ -365,11 +365,14 @@ A first visit explains the rules and asks for a name before the board appears â€
 it is the one thing you must supply, and it is what the leaderboard shows. **How
 to play** in the header brings the same panel back and lets you change it.
 
-Tap or click the letters to build a word, following squares that touch, and press
-Enter. Tapping the last letter again takes it back, and letters the word cannot
-reach from where it is are stood down so the only taps offered are legal ones. On a
-phone this means the game needs no keyboard at all, which is the difference between
-seeing the board and not.
+Draw a word by dragging across the letters and lift to play it, or tap them one at
+a time and press Enter â€” both follow squares that touch. Going back over the letter
+before takes one off, and letters the word cannot reach from where it is are stood
+down, so the only moves offered are legal ones. On a phone this means the game needs
+no keyboard at all, which is the difference between seeing the board and not.
+
+Dragging on the board always draws a word rather than scrolling the page;
+everything below the board scrolls as usual.
 
 Typing still works and mixes freely: the word box does not need to be clicked
 first, keystrokes are routed to it from anywhere on the page, and typing a letter

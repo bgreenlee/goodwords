@@ -328,3 +328,96 @@ test("the board answers a word, and lets go of it quickly", async () => {
   );
   await page.close();
 }, 60_000);
+
+test("a word can be drawn in one movement, and is finished on lifting", async () => {
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  await page.addInitScript(`(() => {
+    localStorage.setItem("goodwords.profile",
+      JSON.stringify({ id: "draw-test", name: "ada", welcomed: true, learned: [] }));
+    const t = ${ROUND * ROUND_MS + PLAY_MS - 60_000}, real = Date.now, t0 = real();
+    Date.now = () => t + (real() - t0);
+  })();`);
+  await page.goto(URL);
+  await page.waitForSelector("button.tile");
+
+  // Drawing must not scroll the page away underneath the finger.
+  expect(await page.locator(".board").evaluate((el) => getComputedStyle(el).touchAction)).toBe(
+    "none",
+  );
+
+  const board = rollBoard(ROUND);
+  const words = readFileSync("public/data/words.txt", "utf8").split("\n");
+  const target = [...solveBoard(board, new Trie(words))].find((w) => w.length >= 5)!;
+  const route = findPath(board, target)!;
+
+  const centre = async (cell: number) => {
+    const box = (await page.locator(`[data-cell="${cell}"]`).boundingBox())!;
+    return [box.x + box.width / 2, box.y + box.height / 2] as const;
+  };
+
+  const [startX, startY] = await centre(route[0]);
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  for (const cell of route.slice(1)) {
+    const [x, y] = await centre(cell);
+    await page.mouse.move(x, y, { steps: 3 });
+  }
+  // The word is there before the finger lifts.
+  expect(await page.locator(".entry__input").inputValue()).toBe(target);
+  await page.mouse.up();
+
+  await page.waitForFunction((n) => document.querySelectorAll(".guesses li").length === n, 1);
+  expect(await page.locator(".guesses__word").first().textContent()).toBe(target);
+  expect(await page.locator(".entry__input").inputValue()).toBe("");
+  await page.close();
+}, 60_000);
+
+test("drawing back over a letter takes it off, and a tap alone submits nothing", async () => {
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  await page.addInitScript(`(() => {
+    localStorage.setItem("goodwords.profile",
+      JSON.stringify({ id: "draw-test-2", name: "ada", welcomed: true, learned: [] }));
+    const t = ${ROUND * ROUND_MS + PLAY_MS - 60_000}, real = Date.now, t0 = real();
+    Date.now = () => t + (real() - t0);
+  })();`);
+  await page.goto(URL);
+  await page.waitForSelector("button.tile");
+
+  const centre = async (cell: number) => {
+    const box = (await page.locator(`[data-cell="${cell}"]`).boundingBox())!;
+    return [box.x + box.width / 2, box.y + box.height / 2] as const;
+  };
+
+  // Out along three touching letters, then back over the last one.
+  const [x0, y0] = await centre(0);
+  await page.mouse.move(x0, y0);
+  await page.mouse.down();
+  for (const cell of [1, 6]) {
+    const [x, y] = await centre(cell);
+    await page.mouse.move(x, y, { steps: 3 });
+  }
+  expect(await page.locator(".tile--chosen").count()).toBe(3);
+  const [x1, y1] = await centre(1);
+  await page.mouse.move(x1, y1, { steps: 3 });
+  expect(await page.locator(".tile--chosen").count()).toBe(2);
+  await page.mouse.up();
+
+  // Too short to be a word, so it is refused rather than taken.
+  await page.waitForTimeout(300);
+  expect(await page.locator(".guesses li").count()).toBe(0);
+
+  // A tap on its own leaves the word standing for another letter.
+  await page.locator('[data-cell="0"]').tap();
+  await page.waitForTimeout(200);
+  expect(await page.locator(".tile--chosen").count()).toBe(1);
+  expect(await page.locator(".guesses li").count()).toBe(0);
+  await page.close();
+}, 60_000);

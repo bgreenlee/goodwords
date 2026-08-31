@@ -269,6 +269,9 @@ body {
 .board {
   display: grid;
   gap: 7px;
+  /* A drag across the board draws a word, so it must not also scroll the page.
+     Everything below the board still scrolls normally. */
+  touch-action: none;
   transition: opacity 0.3s ease;
   /* Letters size against the board, not the window. The same board is shown full
      size in the game and half size in the history, and one viewport-based size
