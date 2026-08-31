@@ -49,7 +49,7 @@ export function Board({ cells, path, rotation = 0, selection = [], onTile }: Pro
 
         if (!onTile) {
           return (
-            <div key={i} className={className}>
+            <div key={i} className={className} data-cell={cell}>
               {cells[cell]}
             </div>
           );
@@ -59,6 +59,7 @@ export function Board({ cells, path, rotation = 0, selection = [], onTile }: Pro
             key={i}
             type="button"
             className={className}
+            data-cell={cell}
             // Stood-down cells stay in the tab order but do nothing, so the board
             // does not reshuffle under a keyboard user mid-word.
             aria-disabled={dead}

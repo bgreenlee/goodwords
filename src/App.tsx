@@ -337,7 +337,13 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     });
   }
 
-  function submit(raw: string) {
+  /**
+   * `viaCells` is the route the player actually tapped. Without it the flash is
+   * drawn from findPath, which returns the first route it finds — often a
+   * different way of spelling the same word, which is disconcerting to watch
+   * after you have just traced one yourself.
+   */
+  function submit(raw: string, viaCells?: number[]) {
     const word = raw.trim().toLowerCase();
     setEntry("");
     setSelection([]);
@@ -346,7 +352,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     if (guesses.includes(word)) return setFeedback({ text: `Already found ${word}`, ok: false });
     if (!data.trie.has(word))
       return setFeedback({ text: `${word} isn’t in the dictionary`, ok: false });
-    const cells = findPath(board, word);
+    const cells = viaCells?.length ? viaCells : findPath(board, word);
     if (!cells) return setFeedback({ text: `${word} isn’t on this board`, ok: false });
 
     // Alone we know the word; live the room confirms it, and either way the flash
@@ -417,7 +423,8 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
             className="entry"
             onSubmit={(e) => {
               e.preventDefault();
-              submit(tapped || entry);
+              // Hand over the route as tapped, so the flash retraces it.
+              submit(tapped || entry, tapped ? selection : undefined);
             }}
           >
             <input

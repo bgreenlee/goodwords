@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { chromium, type Browser } from "playwright";
 import { installClock, seedReturningPlayer } from "./pagesetup";
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { rollBoard, rotatedOrder } from "../src/game/dice";
+import { ADJACENCY, CELL_COUNT, rollBoard, rotatedOrder } from "../src/game/dice";
 import { findPath, solveBoard } from "../src/game/solver";
 import { Trie } from "../src/game/trie";
 import { PLAY_MS, ROUND_MS } from "../src/game/schedule";
@@ -419,5 +419,78 @@ test("clicking the letters works on a desktop too, alongside typing", async () =
   await page.keyboard.press("Enter");
   await page.waitForFunction((n) => document.querySelectorAll(".guesses li").length === n, 2);
 
+  await page.close();
+}, 60_000);
+
+/** Every route this board has for a word, so a test can pick one deliberately. */
+function allRoutes(board: string[], word: string): number[][] {
+  const routes: number[][] = [];
+  const used = new Uint8Array(CELL_COUNT);
+  const route: number[] = [];
+  const walk = (at: number) => {
+    if (at === word.length) {
+      routes.push([...route]);
+      return;
+    }
+    for (let cell = 0; cell < CELL_COUNT; cell++) {
+      if (used[cell]) continue;
+      if (route.length > 0 && !ADJACENCY[route[route.length - 1]].includes(cell)) continue;
+      const face = board[cell].toLowerCase();
+      if (!word.startsWith(face, at)) continue;
+      used[cell] = 1;
+      route.push(cell);
+      walk(at + face.length);
+      route.pop();
+      used[cell] = 0;
+    }
+  };
+  walk(0);
+  return routes;
+}
+
+test("the flash retraces the route you tapped, not another way to spell it", async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await seedReturningPlayer(page);
+  await installClock(page, ROUND * ROUND_MS + 30_000);
+  await page.goto(URL);
+  await page.waitForSelector('[data-room="solo"]');
+  await page.waitForSelector("button.tile");
+  await page.waitForTimeout(300);
+
+  const board = rollBoard(ROUND);
+  const words = readFileSync("public/data/words.txt", "utf8").split("\n");
+  const solution = [...solveBoard(board, new Trie(words))];
+
+  // A word this board can spell more than one way, and a route that is not the
+  // one findPath settles on — which is exactly the case that looked wrong.
+  let word = "";
+  let mine: number[] = [];
+  for (const candidate of solution) {
+    if (candidate.length < 4) continue;
+    const routes = allRoutes(board, candidate);
+    if (routes.length < 2) continue;
+    const theirs = JSON.stringify(findPath(board, candidate));
+    const other = routes.find((r) => JSON.stringify(r) !== theirs);
+    if (other) {
+      word = candidate;
+      mine = other;
+      break;
+    }
+  }
+  expect(word, "no word on this board has two routes").not.toBe("");
+  expect(JSON.stringify(findPath(board, word))).not.toBe(JSON.stringify(mine));
+
+  for (const cell of mine) await page.locator(".tile").nth(cell).click();
+  expect(await page.locator(".entry__input").inputValue()).toBe(word);
+  await page.keyboard.press("Enter");
+  await page.waitForFunction((n) => document.querySelectorAll(".guesses li").length === n, 1);
+
+  const lit = await page.$$eval(".tile--lit", (els) =>
+    els.map((e) => Number(e.getAttribute("data-cell"))),
+  );
+  expect(
+    lit.sort((a, b) => a - b),
+    `tapped ${mine} but lit ${lit}`,
+  ).toEqual([...mine].sort((a, b) => a - b));
   await page.close();
 }, 60_000);
