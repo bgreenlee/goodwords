@@ -98,8 +98,11 @@ test("the deployed game serves, deals a board, and refuses a word it cannot spel
   expect(page.status, `GET ${BASE}`).toBe(200);
   expect(await page.text()).toContain("<title>Good Words</title>");
 
-  const list = await fetch(`${BASE}/data/words.txt`);
-  expect(list.status).toBe(200);
+  // The client asks for the data by version, so ask the same way: a deployment that
+  // served the bare path but not the versioned one would leave every browser without
+  // a dictionary while this check passed.
+  const list = await fetch(`${BASE}/data/words.txt?v=smoke`);
+  expect(list.status, "the versioned dictionary URL should serve").toBe(200);
   const trie = new Trie((await list.text()).split("\n").filter(Boolean));
 
   let last: unknown;
