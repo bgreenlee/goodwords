@@ -65059,7 +65059,6 @@ gyps
 gypseian
 gypseous
 gypsied
-gypsies
 gypsiferous
 gypsophila
 gypsophilas
@@ -65067,7 +65066,6 @@ gypster
 gypsters
 gypsum
 gypsums
-gypsy
 gypsydom
 gypsydoms
 gypsying

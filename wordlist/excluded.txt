@@ -74,3 +74,5 @@ spic
 spick
 spik
 wetback
+gypsy
+eskimo
