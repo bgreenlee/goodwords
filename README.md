@@ -282,6 +282,47 @@ files rather than against whatever `tools/build_data.py` currently produces. If 
 change the Python, rerun `npm run data` and commit the result, or the tests will
 happily keep passing on stale artifacts.
 
+### Excluding and adding words by hand
+
+The dictionary is a public-domain word list, and it contains words the game
+should not offer — a player reported "midget", which was not merely legal but
+could be taught in the missed-words column and could be a round's named bonus
+word. Two tracked files override the dictionary:
+
+    wordlist/excluded.txt         words the game will not accept
+    wordlist/added.txt            words the game will accept anyway
+
+    npm run wordlist              apply them to public/data, then commit
+
+Both take one word per line and allow `#` comments, so the reason for an
+exclusion lives beside the entry. Excluding a word excludes every form of it —
+listing `midget` also drops `midgets` — and removes it from all four artifacts,
+so it cannot be played, cannot be taught, and cannot name a round. An added word
+is playable; give it `word | part of speech | what it means` and it can also be
+taught and name a round.
+
+`npm run wordlist` works on the committed artifacts, so a one-word exclusion
+needs no corpora, no downloads and no Python packages — just the repo. `npm run
+data` ends by applying the lists too, so a full rebuild cannot resurrect an
+excluded word. A test asserts every listed word is absent from the shipped data,
+which is what catches a rebuild that skipped this step.
+
+Excluding a word has to reach players who already have the old dictionary in
+their browser cache. The files in `public/data` are served with a week of
+`max-age` and Vite does not content-hash them, so `vite.config.ts` hashes the
+data at build time and the client appends it as `?v=`. The bundle that reads the
+data *is* hashed and `index.html` revalidates on every load, so a deploy reaches
+everyone at once. Without this an excluded word would keep being solved and
+taught in returning players' browsers for up to a week, even though the server
+refuses to score it.
+
+`npm run review-words` lists the dictionary words that WordNet's own glosses mark
+as slurs, flagging which of them the game would teach or could name as a round's
+bonus word. It excludes nothing: the list mixes true slurs with words whose
+offensive sense is one of several — "queen", "tool", "fairy" — so the call is a
+human's. It is a supplement rather than a safety net, and it would not have
+caught "midget", whose gloss is the neutral "a person who is markedly small".
+
 ## Deploying
 
 Pushing to `main` deploys, once the two secrets below exist. GitHub Actions

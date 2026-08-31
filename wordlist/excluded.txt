@@ -1,0 +1,12 @@
+# Words the game will not accept, whatever the dictionary says.
+#
+# One per line. Excluding a word excludes every form of it: listing "midget"
+# also drops "midgets", because you are excluding the word and not a spelling.
+# An excluded word cannot be played, cannot be taught in the missed-words
+# column, and cannot name a round.
+#
+# Say why. The reason is the useful part of the record, and the next person to
+# read this file will want it.
+
+# Reported by a player: a slur for people with dwarfism.
+midget

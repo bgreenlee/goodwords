@@ -1,0 +1,10 @@
+# Words the game will accept that the dictionary does not have.
+#
+# One per line, and optionally a definition:
+#
+#   word
+#   word | part of speech | what it means
+#
+# Without a definition a word is simply accepted as valid. With one it can also
+# be taught in the missed-words column and can name a round, so only give a
+# definition to a word worth learning.

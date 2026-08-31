@@ -11,6 +11,8 @@ lemma worth learning.
 """
 import json, os, sys, gzip, subprocess
 
+import wordlist
+
 sys.path.insert(0, os.path.dirname(__file__))
 import wordnet as wn
 from wordfreq import zipf_frequency
@@ -107,6 +109,10 @@ def main():
 
     print(f"teachable lemmas: {len(defs)}")
     print(f"inflections mapped to a lemma: {len(lemma_of)}")
+    # The hand-kept lists have the last word, so a rebuild cannot resurrect an
+    # excluded word. Prints the final counts, which supersede those above.
+    wordlist.apply(OUT)
+
     for name in ("words.txt", "freq.bin", "vocab.json"):
         p = os.path.join(OUT, name)
         raw = os.path.getsize(p)

@@ -14,11 +14,13 @@ export type GameData = {
 };
 
 const BASE = `${import.meta.env.BASE_URL}data`;
+/** Changes whenever the data changes, so a stale copy is never reused. */
+const V = `?v=${__DATA_VERSION__}`;
 
 export async function loadDictionary(): Promise<GameData> {
   const [wordsText, freqBuf] = await Promise.all([
-    fetch(`${BASE}/words.txt`).then((r) => r.text()),
-    fetch(`${BASE}/freq.bin`).then((r) => r.arrayBuffer()),
+    fetch(`${BASE}/words.txt${V}`).then((r) => r.text()),
+    fetch(`${BASE}/freq.bin${V}`).then((r) => r.arrayBuffer()),
   ]);
   const words = wordsText.split("\n");
   const freq = new Uint8Array(freqBuf);
@@ -34,5 +36,5 @@ export async function loadDictionary(): Promise<GameData> {
  * background while the first game is already being played.
  */
 export function loadVocab(): Promise<Vocab> {
-  return fetch(`${BASE}/vocab.json`).then((r) => r.json());
+  return fetch(`${BASE}/vocab.json${V}`).then((r) => r.json());
 }
