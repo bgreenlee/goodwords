@@ -275,6 +275,10 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
         // Focus the box and let the browser deliver the character to it. Appending
         // by hand as well means two writers: with quick typing the manual append
         // can land after several native ones and the letters come out reordered.
+        //
+        // Plain focus() on purpose, not focusUnprompted: somebody just typed, so a
+        // keyboard is already in use. Gating this would stop typing working on a
+        // tablet with a keyboard, which reports no hover like any other tablet.
         chooseCells([]);
         field.focus();
       } else if (event.key === "Backspace") {
@@ -560,7 +564,10 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
             setProfile(next);
             saveProfile(next);
             setDialog(null);
-            inputRef.current?.focus();
+            // Deliberately does not take the word box. On a phone that raises the
+            // keyboard over the board; and it was never reliable anyway, since the
+            // box is still disabled while the room is being found. Typing anywhere
+            // focuses it on the first letter, which covers the same ground.
           }}
           onClose={() => setDialog(null)}
         />

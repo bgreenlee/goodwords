@@ -454,10 +454,20 @@ test("no dialog summons the keyboard by itself", async () => {
   await page.locator(".sheet__go").tap();
   await page.waitForSelector("button.tile");
 
-  // Reopening it later must behave the same way.
+  // Nor may dismissing it hand focus to the word box on the way out.
+  expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("INPUT");
+
+  // Reopening it later must behave the same way, opening and closing.
   await page.locator(".topbar__btn", { hasText: "How to play" }).tap();
   await page.waitForSelector(".sheet");
   await page.waitForTimeout(400);
   expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("INPUT");
+  await page.locator(".sheet__go").tap();
+  await page.waitForSelector(".sheet", { state: "detached" });
+  await page.waitForTimeout(400);
+  expect(
+    await page.evaluate(() => document.activeElement?.tagName),
+    "closing the panel handed focus to the word box",
+  ).not.toBe("INPUT");
   await page.close();
 }, 60_000);

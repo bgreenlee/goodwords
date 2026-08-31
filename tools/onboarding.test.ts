@@ -62,6 +62,14 @@ test("a first visit explains the game and will not start without a name", async 
   await page.waitForSelector(".tile");
   expect(await page.locator(".sheet").count()).toBe(0);
   expect(await page.locator(".topbar__who").textContent()).toBe("ada");
+  // Nothing takes focus on the way out — but typing still has to reach the box,
+  // which is what actually matters to somebody who has just entered their name.
+  await page.waitForSelector('[data-room="solo"]');
+  await page.keyboard.type("cat");
+  expect(
+    await page.locator(".entry__input").inputValue(),
+    "typing after entering a name should reach the word box",
+  ).toBe("cat");
 
   // The welcome does not come back for a player who has already been through it.
   await page.reload();
