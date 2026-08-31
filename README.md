@@ -440,6 +440,18 @@ the word. It is the longest word the board can spell that is also worth knowing 
 99% of boards have one, averaging 7.6 letters. Finding it pays double. This is the
 definitions column turned into the objective instead of the reward.
 
+The clue has the answer blanked out of it, because dictionaries name the word they
+are defining: a mantissa is glossed "the positive fractional part ... in the
+expression log 643 = 2.808 the mantissa is .808", which hands over the very word
+the round is asking for. Relatives are blanked too, since "in a detrimental
+manner" gives up "detrimentally" just as plainly. Blanking sometimes leaves
+nothing to go on — "of or relating to ________" — so a word whose clue collapses
+that way is passed over for the next one, which costs 3,700 of 51,615 candidates
+and no noticeable variety. This lives in `src/game/bonus.ts` rather than in the
+data, because a game played alone builds its clue from the definitions rather
+than from `bonus.json`, and only the clue should hide the answer — the
+missed-words column still shows the definition as written.
+
 **A word nobody else found is worth double.** That cannot be known while the round
 runs, since somebody may still find it, so it settles at the boundary and is shown
 in the break. It only applies when there is somebody to have missed it. The board uses the real 25-die Big Boggle set, so the letter mix plays the

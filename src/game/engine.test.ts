@@ -10,7 +10,7 @@ import {
 } from "./dice";
 import { roundAt, BREAK_MS, PLAY_MS, ROUND_MS } from "./schedule";
 import { scoreWord } from "./scoring";
-import { pickBonus } from "./bonus";
+import { pickBonus, redactClue, usableClue } from "./bonus";
 import { teachableFrom } from "./vocab";
 import { TEACH_ZIPF_MAX, TEACH_ZIPF_MIN } from "./vocab";
 import { labelRows } from "../names";
@@ -185,7 +185,37 @@ describe("the bonus word", () => {
       expect(trie.has(bonus.word)).toBe(true);
       expect(bonus.word.length).toBeGreaterThanOrEqual(6);
       expect(bonus.gloss.length).toBeGreaterThan(3);
+      // The clue must not contain the answer it is asking for.
+      expect(bonus.gloss.toLowerCase()).not.toContain(bonus.word.toLowerCase());
     }
+  });
+
+  test("the clue never gives away the answer", () => {
+    // "the mantissa is .808" is a real gloss, and a real answer handed over.
+    expect(
+      redactClue("mantissa", "mantissa", "in the expression log 643 = 2.808 the mantissa is .808"),
+    ).toBe("in the expression log 643 = 2.808 the ________ is .808");
+    // A relative gives it away just as plainly.
+    expect(redactClue("detrimentally", "detrimental", "in a detrimental manner")).toBe(
+      "in a ________ manner",
+    );
+    // A word that merely shares letters is left alone.
+    expect(redactClue("mantissa", "mantissa", "a small fractional part")).toBe(
+      "a small fractional part",
+    );
+    // Neighbouring mentions read as one gap rather than a row of them.
+    expect(
+      redactClue("logarithm", "logarithm", "the logarithm logarithmic scale of a number"),
+    ).toBe("the ________ scale of a number");
+  });
+
+  test("a clue left saying nothing is not used", () => {
+    expect(usableClue("in a ________ manner")).toBe(false);
+    expect(usableClue("of or relating to ________")).toBe(false);
+    expect(usableClue("a woman ________")).toBe(false);
+    expect(usableClue("the positive fractional part of the representation of a logarithm")).toBe(
+      true,
+    );
   });
 
   // Proving nothing longer fits means trying every longer candidate against the
@@ -197,8 +227,16 @@ describe("the bonus word", () => {
       const bonus = pickBonus(board, bonusList);
       if (!bonus) continue;
       const longer = bonusList.filter(([w]) => w.length > bonus.word.length);
-      for (const [w] of longer) {
-        expect(findPath(board, w), `${w} is longer than ${bonus.word}`).toBeNull();
+      for (const [w, entry] of longer) {
+        if (!findPath(board, w)) continue;
+        // A longer word is only passed over when blanking the answer out of its
+        // own clue leaves nothing to hunt by.
+        const raw = entry.slice(entry.indexOf("|") + 1);
+        const gloss = redactClue(w, w, raw);
+        expect(
+          gloss !== raw && !usableClue(gloss),
+          `${w} is longer than ${bonus.word} and has a clue`,
+        ).toBe(true);
       }
     }
   }, 60_000);
