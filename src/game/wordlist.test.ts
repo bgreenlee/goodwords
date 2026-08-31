@@ -88,6 +88,83 @@ describe("hand-kept word lists", () => {
     expect(afterVocab.defs["mooch"]).toBeUndefined();
   });
 
+  // Adding a word should not mean listing every shape of it by hand, and the forms
+  // have to be the right ones: an added form is playable, so a wrong guess is a
+  // made-up word rather than a harmless miss.
+  test.skipIf(!hasPython())("an added word brings its regular forms", () => {
+    const { out } = runOn({
+      excluded: "# none\n",
+      added: [
+        "mosh | verb | dance aggressively at a rock concert",
+        "selfie | noun | a photograph you take of yourself",
+        "blog | verb | write an online journal",
+        "vape | verb | inhale vapour from an electronic cigarette",
+        "",
+      ].join("\n"),
+    });
+    const after = new Set(readFileSync(join(out, "words.txt"), "utf8").split("\n"));
+    const has = (word: string) => after.has(word);
+
+    // -es after sh, a doubled consonant after a short vowel, a dropped e before -ing.
+    for (const word of ["mosh", "moshes", "moshed", "moshing"]) expect(has(word), word).toBe(true);
+    for (const word of ["blog", "blogs", "blogged", "blogging"]) expect(has(word), word).toBe(true);
+    for (const word of ["vape", "vapes", "vaped", "vaping"]) expect(has(word), word).toBe(true);
+
+    // A noun gets its plural and no verb forms, and no rule invents a non-word.
+    expect(has("selfies")).toBe(true);
+    for (const word of ["selfied", "selfieing", "moshs", "bloged", "vapeing"]) {
+      expect(has(word), `${word} is not a word`).toBe(false);
+    }
+
+    // A form points at the word it came from, so missing "moshing" teaches "mosh"
+    // the way missing "mooches" teaches "mooch".
+    const vocabAfter = JSON.parse(readFileSync(join(out, "vocab.json"), "utf8"));
+    expect(vocabAfter.lemmaOf["moshing"]).toBe("mosh");
+    expect(vocabAfter.defs["mosh"]).toBe("verb|dance aggressively at a rock concert");
+    expect(vocabAfter.defs["moshing"], "a form has no definition of its own").toBeUndefined();
+
+    // And it can name a round on the same terms as any other word: long enough,
+    // and backed by its root's definition.
+    const bonusAfter = new Map(
+      (JSON.parse(readFileSync(join(out, "bonus.json"), "utf8")) as [string, string][]).map(
+        ([word, entry]) => [word, entry],
+      ),
+    );
+    expect(bonusAfter.get("moshing")).toBe("verb|dance aggressively at a rock concert");
+    expect(bonusAfter.has("mosh"), "four letters is too short to name a round").toBe(false);
+  });
+
+  // Listing a word the dictionary already has replaces its definition, which is the
+  // way to fix a gloss that is wrong or badly worded rather than lose the word.
+  test.skipIf(!hasPython())(
+    "adding a word already in the dictionary overrides its definition",
+    () => {
+      const { out } = runOn({
+        excluded: "# none\n",
+        added:
+          "shrimp | noun | a totally made up definition for testing\nmooch | verb | an invented gloss for the root\n",
+      });
+      const words = readFileSync(join(out, "words.txt"), "utf8").split("\n");
+      const after = JSON.parse(readFileSync(join(out, "vocab.json"), "utf8"));
+      const afterBonus = new Map(
+        (JSON.parse(readFileSync(join(out, "bonus.json"), "utf8")) as [string, string][]).map(
+          ([word, entry]) => [word, entry],
+        ),
+      );
+
+      expect(after.defs["shrimp"]).toBe("noun|a totally made up definition for testing");
+      // A round's clue lives beside the word, so it has to be overridden too or the
+      // clue and the vocabulary column would disagree.
+      expect(afterBonus.get("shrimp")).toBe("noun|a totally made up definition for testing");
+      // An inflection carries its headword's gloss, so it follows the override.
+      expect(afterBonus.get("mooches")).toBe("verb|an invented gloss for the root");
+
+      // Overriding is not a second entry.
+      expect(words.filter((word) => word === "shrimp")).toHaveLength(1);
+      expect(words).toEqual([...words].sort());
+    },
+  );
+
   // Exercises the script itself against a scratch copy of the data, so both halves
   // of the mechanism are covered even while added.txt is empty.
   test.skipIf(!hasPython())(

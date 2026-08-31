@@ -308,8 +308,24 @@ forms follow the spelling rules rather than just appending letters, so excluding
 dictionary already had it.
 
 A variant spelling is not a form and will not be found: `gipsy` had to be listed
-beside `gypsy`. An added word is playable; give it `word | part of speech | what
-it means` and it can also be taught and name a round.
+beside `gypsy`.
+
+An added word is playable, and its regular forms come with it, so one line per
+word is enough: `mosh | verb` brings moshes, moshed and moshing. The part of
+speech decides which forms exist, so a noun gets its plural and no verb forms.
+These rules are stricter than the ones exclusion uses, because the two directions
+fail differently: a form generated for exclusion is dropped unless the dictionary
+already had it, so a bad guess costs nothing, while a form generated for addition
+becomes a word people can play. An irregular word still needs its forms listed by
+hand. Give an added word a definition — `word | part of speech | what it means` —
+and it can also be taught and name a round, and so can its forms: missing
+"moshing" teaches "mosh", the way missing "mooches" teaches "mooch".
+
+Listing a word the dictionary already has overrides its definition rather than
+duplicating the word, which is how to fix a gloss that is wrong or badly worded
+without losing the word. The override reaches the round clues too — those are
+stored beside the word, so a definition changed in one place and not the other
+would have the vocabulary column and the clue disagreeing.
 
 `npm run wordlist` works on the committed artifacts, so a one-word exclusion
 needs no corpora, no downloads and no Python packages — just the repo. `npm run

@@ -8,3 +8,9 @@
 # Without a definition a word is simply accepted as valid. With one it can also
 # be taught in the missed-words column and can name a round, so only give a
 # definition to a word worth learning.
+#
+# The regular forms come along on their own, so one line per word is enough:
+# "mosh | verb" brings moshes, moshed and moshing, and "selfie | noun" brings
+# selfies without inventing selfied. The part of speech is what decides, so give
+# it. An irregular word is the exception — list goose and geese separately.
+mosh | verb | dance aggressively at a rock concert
