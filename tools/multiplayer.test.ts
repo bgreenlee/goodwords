@@ -5,7 +5,7 @@ import { chromium, type Browser, type Page } from "playwright";
 import { seedReturningPlayer } from "./pagesetup";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { rollBoard } from "../src/game/dice";
-import { roundAt } from "../src/game/schedule";
+import { roundAt, ROUND_MS } from "../src/game/schedule";
 import { solveBoard } from "../src/game/solver";
 import { Trie } from "../src/game/trie";
 
@@ -157,8 +157,17 @@ test("a client whose clock runs ahead waits for the deal instead of inventing a 
     window.__skew = (ms) => { skew = ms; };
   })();`);
   await page.goto(URL);
-  await page.waitForSelector('[data-room="live"]');
-  await page.waitForSelector(".tile");
+  await page.waitForSelector('[data-room="live"]', { timeout: 45_000 }).catch(async (err) => {
+    const seen = await page.getAttribute("[data-room]", "data-room").catch(() => "no panel");
+    throw new Error(`never went live (panel said "${seen}"): ${err}`);
+  });
+  await page.waitForSelector(".tile", { timeout: 20_000 }).catch(async (err) => {
+    const seen = await page
+      .locator(".board")
+      .innerText()
+      .catch(() => "no board");
+    throw new Error(`no letters on the board (it said "${seen}"): ${err}`);
+  });
 
   const dealtBoard = await tilesOf(page);
   await page.evaluate(() => (window as never as { __skew: (n: number) => void }).__skew(210_000));
@@ -214,4 +223,36 @@ test("the day's standings keep a player who has already left", async () => {
   expect(await grace.locator(".tabs__tab--on").textContent()).toBe("This round");
 
   await grace.close();
+}, 120_000);
+
+test("a board that never arrives is asked for rather than waited on forever", async () => {
+  // The room pushes a board at every boundary. A push that goes astray used to
+  // leave the browser on "dealing the next board" until someone reloaded.
+  await waitForPlayTime(30_000);
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await seedReturningPlayer(page, "asker");
+  await page.addInitScript(`(() => {
+    const real = Date.now;
+    let skew = 0;
+    Date.now = () => real() + skew;
+    window.__skew = (ms) => { skew = ms; };
+  })();`);
+  await page.goto(URL);
+  await page.waitForSelector('[data-room="live"]', { timeout: 45_000 });
+  await page.waitForSelector(".tile", { timeout: 20_000 });
+  const before = await tilesOf(page);
+
+  // Jump a whole round ahead. The room's clock has not moved, so it will send
+  // nothing on its own — the browser has to ask, and it does.
+  await page.evaluate(
+    (ms) => (window as never as { __skew: (n: number) => void }).__skew(ms),
+    ROUND_MS,
+  );
+  await page.waitForSelector(".board--waiting", { timeout: 5000 });
+
+  // Within a few seconds it has asked and been given the board it should be on.
+  await page.waitForSelector(".tile", { timeout: 15_000 });
+  expect(await tilesOf(page), "asking should have produced a board").toEqual(before);
+  expect(await page.getAttribute("[data-room]", "data-room")).toBe("live");
+  await page.close();
 }, 120_000);

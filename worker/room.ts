@@ -382,6 +382,13 @@ export class GameRoom {
       this.scheduleLeaderboard();
       return;
     }
+    if (msg.t === "deal") {
+      // A client that believes the round has moved on and has had no board asks
+      // for one. Cheap, and it means a missed alarm is a hiccup rather than a
+      // player stuck watching an empty board until they reload.
+      await this.sendBoard(ws);
+      return;
+    }
     if (msg.t !== "word") return;
 
     const live = await this.current();

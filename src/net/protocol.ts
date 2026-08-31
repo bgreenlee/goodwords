@@ -36,6 +36,8 @@ export type ClientMessage =
   /** `id` is this browser's own, so a day of rounds adds up to one player. */
   | { t: "hello"; name: string; id?: string }
   | { t: "word"; w: string }
+  /** Asks for the current board, when the room's own push has not arrived. */
+  | { t: "deal" }
   | { t: "name"; name: string };
 
 export type ServerMessage =

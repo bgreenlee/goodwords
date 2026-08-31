@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Board as BoardCells } from "./game/dice";
+import { roundAt } from "./game/schedule";
 import type { BonusClue, DailyRow, LeaderRow, ServerMessage, Tally } from "./net/protocol";
 
 /**
@@ -57,6 +58,9 @@ const RETRY_MS = [500, 1000, 2000, 5000, 10_000];
  * the upgrade — would otherwise leave the player staring at nothing.
  */
 const JOIN_TIMEOUT_MS = 2500;
+
+/** How long to wait for the room's own board before asking for one. */
+const DEAL_NUDGE_MS = 1500;
 
 export function useRoom(name: string, id: string): Room {
   const [snap, setSnap] = useState<Snapshot>(EMPTY);
@@ -164,6 +168,20 @@ export function useRoom(name: string, id: string): Room {
       socket.current = null;
     };
   }, []);
+
+  // The room pushes a board at every boundary. If one goes astray the browser
+  // would otherwise sit on "dealing the next board" for good, so it asks.
+  useEffect(() => {
+    if (snap.status !== "live" || snap.round === null) return;
+    const id = setInterval(() => {
+      const ws = socket.current;
+      if (ws?.readyState !== WebSocket.OPEN) return;
+      if (roundAt(Date.now() + snap.offsetMs).round > snap.round!) {
+        ws.send(JSON.stringify({ t: "deal" }));
+      }
+    }, DEAL_NUDGE_MS);
+    return () => clearInterval(id);
+  }, [snap.status, snap.round, snap.offsetMs]);
 
   function submit(word: string) {
     const ws = socket.current;
