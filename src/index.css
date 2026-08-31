@@ -696,7 +696,9 @@ button.tile:focus-visible {
 
 .sheet {
   width: min(560px, 100%);
-  max-height: calc(100vh - 40px);
+  /* The visible height, not the window's: a keyboard shrinks what can be seen
+     without shrinking 100vh, and a panel taller than that cannot be read. */
+  max-height: calc(var(--play-space, 100vh) - 40px);
   overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);

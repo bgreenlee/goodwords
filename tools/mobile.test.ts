@@ -421,3 +421,43 @@ test("drawing back over a letter takes it off, and a tap alone submits nothing",
   expect(await page.locator(".guesses li").count()).toBe(0);
   await page.close();
 }, 60_000);
+
+test("no dialog summons the keyboard by itself", async () => {
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  await page.addInitScript(`(() => {
+    const t = ${ROUND * ROUND_MS + PLAY_MS - 60_000}, real = Date.now, t0 = real();
+    Date.now = () => t + (real() - t0);
+  })();`);
+
+  // First visit: the welcome asks for a name, but must not open the keyboard to
+  // do it — that covers half the screen and shoves the panel out of view.
+  await page.goto(URL);
+  await page.waitForSelector(".sheet");
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("INPUT");
+
+  // The panel has to fit what can actually be seen, keyboard or no keyboard.
+  const fits = await page.evaluate(() => {
+    const sheet = document.querySelector(".sheet")!.getBoundingClientRect();
+    return sheet.top >= -1 && sheet.height <= window.innerHeight + 1;
+  });
+  expect(fits, "the welcome does not fit on screen").toBe(true);
+
+  // Tapping the field is how a phone asks for a keyboard, and it still works.
+  await page.locator(".sheet__input").tap();
+  expect(await page.evaluate(() => document.activeElement?.className)).toContain("sheet__input");
+  await page.locator(".sheet__input").fill("ada");
+  await page.locator(".sheet__go").tap();
+  await page.waitForSelector("button.tile");
+
+  // Reopening it later must behave the same way.
+  await page.locator(".topbar__btn", { hasText: "How to play" }).tap();
+  await page.waitForSelector(".sheet");
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("INPUT");
+  await page.close();
+}, 60_000);

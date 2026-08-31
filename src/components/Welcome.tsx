@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { isTouch } from "../touch";
 
 type Props = {
   /** First run asks for a name and cannot be dismissed without one. */
@@ -13,7 +14,9 @@ export function Welcome({ firstRun, name, onStart, onClose }: Props) {
   const field = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    field.current?.focus();
+    // Not on a phone: focusing raises the keyboard, which covers half the screen
+    // and pushes the panel out from under the reader before they have read it.
+    if (!isTouch) field.current?.focus();
   }, []);
 
   useEffect(() => {

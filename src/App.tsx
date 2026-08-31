@@ -25,6 +25,7 @@ import {
   type PlayedGame,
   type Profile,
 } from "./storage";
+import { isTouch } from "./touch";
 import { useRoom } from "./useRoom";
 import { useKeepBoardVisible, usePlaySpace } from "./usePlaySpace";
 import { useRound } from "./useRound";
@@ -33,9 +34,6 @@ type Round = { round: number; key: string; board: BoardCells; solution: Set<stri
 
 const BLANK_BOARD: BoardCells = Array(CELL_COUNT).fill("");
 const NO_WORDS: Set<string> = new Set();
-
-/** Touch devices raise a keyboard on focus, which is not something to do unasked. */
-const isTouch = typeof window !== "undefined" && window.matchMedia("(hover: none)").matches;
 
 /**
  * How long a word's path stays lit before fading back. Shorter on a phone: taps
