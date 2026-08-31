@@ -494,3 +494,43 @@ test("the flash retraces the route you tapped, not another way to spell it", asy
   ).toEqual([...mine].sort((a, b) => a - b));
   await page.close();
 }, 60_000);
+
+test("a refused word is answered on the letters, not only in words", async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await seedReturningPlayer(page);
+  await installClock(page, ROUND * ROUND_MS + 30_000);
+  await page.goto(URL);
+  await page.waitForSelector("button.tile");
+
+  const board = rollBoard(ROUND);
+  const words = readFileSync("public/data/words.txt", "utf8").split("\n");
+  const target = [...solveBoard(board, new Trie(words))].find((w) => w.length >= 5)!;
+  const cells = findPath(board, target)!;
+  const play = async (word: string) => {
+    await page.locator(".entry__input").fill(word);
+    await page.locator(".entry__input").press("Enter");
+  };
+
+  await play(target);
+  await page.waitForFunction((n) => document.querySelectorAll(".guesses li").length === n, 1);
+
+  // Playing it again is refused, and the letters say so.
+  await play(target);
+  await page.waitForFunction(
+    (n) => document.querySelectorAll(".tile--wrong").length === n,
+    cells.length,
+  );
+  const marked = await page.$$eval(".tile--wrong", (els) =>
+    els.map((e) => Number(e.getAttribute("data-cell"))).sort((a, b) => a - b),
+  );
+  expect(marked).toEqual([...cells].sort((a, b) => a - b));
+  // Refused, so nothing is lit as accepted at the same time.
+  expect(await page.locator(".tile--lit").count()).toBe(0);
+
+  // A word the board cannot spell has no letters to mark, so only words answer.
+  await play("zzzzq");
+  expect(await page.locator(".feedback").textContent()).toContain("dictionary");
+  await page.waitForTimeout(200);
+  expect(await page.locator(".tile--wrong").count()).toBe(0);
+  await page.close();
+}, 60_000);

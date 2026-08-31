@@ -4,6 +4,8 @@ type Props = {
   cells: BoardCells;
   /** Board cells to light up, e.g. the path of the word just accepted. */
   path?: number[];
+  /** Cells of a word that was refused, shown briefly so the board answers too. */
+  rejected?: number[];
   /** Quarter turns clockwise; the cells move but the letters stay upright. */
   rotation?: number;
   /** Cells tapped so far, in order. */
@@ -20,8 +22,9 @@ export function reachableFrom(selection: number[]): Set<number> | null {
   return new Set(ADJACENCY[last].filter((cell) => !used.has(cell)));
 }
 
-export function Board({ cells, path, rotation = 0, selection = [], onTile }: Props) {
+export function Board({ cells, path, rejected, rotation = 0, selection = [], onTile }: Props) {
   const lit = new Set(path ?? []);
+  const wrong = new Set(rejected ?? []);
   const order = rotatedOrder(rotation);
   const chosen = new Map(selection.map((cell, i) => [cell, i + 1]));
   const reachable = reachableFrom(selection);
@@ -39,7 +42,8 @@ export function Board({ cells, path, rotation = 0, selection = [], onTile }: Pro
         const dead = onTile !== undefined && reachable !== null && !reachable.has(cell) && !at;
         const className = [
           "tile",
-          lit.has(cell) && !at ? "tile--lit" : "",
+          wrong.has(cell) ? "tile--wrong" : "",
+          lit.has(cell) && !at && !wrong.has(cell) ? "tile--lit" : "",
           at ? "tile--chosen" : "",
           cell === last ? "tile--last" : "",
           dead ? "tile--dead" : "",

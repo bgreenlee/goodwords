@@ -34,15 +34,21 @@ type Round = { round: number; key: string; board: BoardCells; solution: Set<stri
 const BLANK_BOARD: BoardCells = Array(CELL_COUNT).fill("");
 const NO_WORDS: Set<string> = new Set();
 
-/** How long an accepted word's path stays lit before fading back. */
-const HIGHLIGHT_MS = 700;
+/** Touch devices raise a keyboard on focus, which is not something to do unasked. */
+const isTouch = typeof window !== "undefined" && window.matchMedia("(hover: none)").matches;
+
+/**
+ * How long a word's path stays lit before fading back. Shorter on a phone: taps
+ * come faster than typing, and a highlight still fading from the last word while
+ * the next is being tapped reads as the game lagging behind.
+ */
+const HIGHLIGHT_MS = isTouch ? 320 : 700;
+/** A refusal is a shorter beat still — it is a correction, not a reward. */
+const REJECT_MS = isTouch ? 380 : 550;
 /** Pace for replaying restored words to the room, under its ten-a-second limit. */
 const RESYNC_MS = 160;
 
 /** A stored round only resumes onto the board it was played on. */
-/** Touch devices raise a keyboard on focus, which is not something to do unasked. */
-const isTouch = typeof window !== "undefined" && window.matchMedia("(hover: none)").matches;
-
 const boardsMatch = (a: string[], b: string[]) =>
   a.length === b.length && a.every((cell, i) => cell === b[i]);
 
@@ -74,6 +80,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
   const [entry, setEntry] = useState("");
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
   const [path, setPath] = useState<number[]>([]);
+  const [rejected, setRejected] = useState<number[]>([]);
   const [traced, setTraced] = useState<number[] | null>(null);
   const [rotation, setRotation] = useState(0);
   /** Set when we are playing alone and know the bonus word ourselves. */
@@ -132,6 +139,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     setEntry("");
     setFeedback(null);
     setPath([]);
+    setRejected([]);
     setTraced(null);
     setSoloHit(null);
     setSelection([]);
@@ -312,6 +320,12 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     return () => clearTimeout(id);
   }, [path]);
 
+  useEffect(() => {
+    if (rejected.length === 0) return;
+    const id = setTimeout(() => setRejected([]), REJECT_MS);
+    return () => clearTimeout(id);
+  }, [rejected]);
+
   const worth = (w: string) => scoreWord(w) * (w === bonusFound ? BONUS_MULTIPLIER : 1);
   const score = guesses.reduce((n, w) => n + worth(w), 0);
   // Until the room answers we do not know whose board this is. Showing the solo
@@ -348,12 +362,21 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     setEntry("");
     setSelection([]);
     if (!word) return;
-    if (word.length < 4) return setFeedback({ text: "Four letters minimum", ok: false });
-    if (guesses.includes(word)) return setFeedback({ text: `Already found ${word}`, ok: false });
-    if (!data.trie.has(word))
-      return setFeedback({ text: `${word} isn’t in the dictionary`, ok: false });
-    const cells = viaCells?.length ? viaCells : findPath(board, word);
-    if (!cells) return setFeedback({ text: `${word} isn’t on this board`, ok: false });
+
+    // A refusal shows on the board as well as in words. The letters are where the
+    // player is looking, and a line of text under them is easy to miss.
+    const route = viaCells?.length ? viaCells : findPath(board, word);
+    const refuse = (text: string) => {
+      setFeedback({ text, ok: false });
+      setRejected(route ?? []);
+      setPath([]);
+    };
+
+    if (word.length < 4) return refuse("Four letters minimum");
+    if (guesses.includes(word)) return refuse(`Already found ${word}`);
+    if (!data.trie.has(word)) return refuse(`${word} isn’t in the dictionary`);
+    const cells = route;
+    if (!cells) return refuse(`${word} isn’t on this board`);
 
     // Alone we know the word; live the room confirms it, and either way the flash
     // and the doubled points land at once.
@@ -365,6 +388,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
     // standing is stale — the list is about to shift under the pointer anyway.
     tracedWord.current = null;
     setTraced(null);
+    setRejected([]);
     setPath(cells);
     setFeedback({
       text: isBonus
@@ -411,6 +435,7 @@ function Game({ data, vocab }: { data: GameData; vocab: Vocab | null }) {
               cells={board}
               // Hovering a word still wins: it is what the pointer is asking for.
               path={traced ?? (playing ? path : (revealedPath ?? []))}
+              rejected={playing ? rejected : []}
               rotation={rotation}
               selection={playing ? selection : []}
               onTile={playing ? tapTile : undefined}

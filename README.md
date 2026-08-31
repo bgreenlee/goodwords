@@ -376,7 +376,12 @@ first, keystrokes are routed to it from anywhere on the page, and typing a lette
 abandons a half-tapped word rather than muddling the two. Enter submits either. **Space turns the board** a
 quarter turn, the way you would turn the physical one to see new words; the cells
 move but the letters stay upright, and turning never changes which words are
-findable. During the break, pointing at a missed word traces where it was.
+findable. The letters answer as well as the words: an accepted word lights green along the
+route you actually traced, a refused one goes red on the same letters, and both let
+go quickly — quicker still on a phone, where tapping outruns typing and a highlight
+still fading from the last word gets in the way of the next.
+
+During the break, pointing at a missed word traces where it was.
 
 A refresh does not cost you the round: the words found so far are kept and put
 back, but only onto the board they were played on. When the game is live they are

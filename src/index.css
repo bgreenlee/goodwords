@@ -347,8 +347,28 @@ button.tile:focus-visible {
   cursor: default;
 }
 
+/* Tapping is quicker than typing, so a highlight that is still fading from the
+   last word gets in the way of the next. Shorter where there is no pointer. */
+@media (hover: none) {
+  .tile {
+    transition:
+      background 260ms ease,
+      color 260ms ease;
+  }
+}
+
 .tile--lit {
   background: var(--accent);
+  color: #fff;
+  transition:
+    background 90ms ease,
+    color 90ms ease;
+}
+
+/* A word the board would not take. Arrives as fast as an accepted one and
+   leaves just as quickly — it is a correction, not something to dwell on. */
+.tile--wrong {
+  background: var(--warn);
   color: #fff;
   transition:
     background 90ms ease,

@@ -256,3 +256,75 @@ test("quick taps all land", async () => {
   expect(await page.locator(".entry__input").inputValue(), "a tap went missing").toBe(target);
   await page.close();
 }, 60_000);
+
+test("the board answers a word, and lets go of it quickly", async () => {
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  await page.addInitScript(`(() => {
+    localStorage.setItem("goodwords.profile",
+      JSON.stringify({ id: "feedback-test", name: "ada", welcomed: true, learned: [] }));
+    const t = ${ROUND * ROUND_MS + PLAY_MS - 60_000}, real = Date.now, t0 = real();
+    Date.now = () => t + (real() - t0);
+  })();`);
+  await page.goto(URL);
+  await page.waitForSelector("button.tile");
+
+  const board = rollBoard(ROUND);
+  const words = readFileSync("public/data/words.txt", "utf8").split("\n");
+  const target = [...solveBoard(board, new Trie(words))].find((w) => w.length >= 5)!;
+  const cells = findPath(board, target)!;
+
+  const play = async (word: string) => {
+    await page.locator(".entry__input").fill(word);
+    await page.locator(".entry__input").press("Enter");
+  };
+
+  // Accepted: the letters light up, and let go before the next word is tapped.
+  await play(target);
+  await page.waitForFunction(
+    (n) => document.querySelectorAll(".tile--lit").length === n,
+    cells.length,
+  );
+  const started = Date.now();
+  await page.waitForFunction(
+    () => document.querySelectorAll(".tile--lit").length === 0,
+    undefined,
+    {
+      timeout: 3000,
+    },
+  );
+  const held = Date.now() - started;
+  // The desktop hold alone is 700ms; tapping is quicker than typing and the
+  // board has to keep up.
+  expect(held, `the highlight held for ${held}ms`).toBeLessThan(600);
+
+  // Refused: the same letters answer, in a different colour.
+  await play(target);
+  await page.waitForFunction(
+    () => document.querySelectorAll(".tile--wrong").length > 0,
+    undefined,
+    {
+      timeout: 2000,
+    },
+  );
+  const colours = await page.evaluate(() => {
+    const wrong = document.querySelector(".tile--wrong")!;
+    const lit = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+    return { wrong: getComputedStyle(wrong).backgroundColor, accent: lit };
+  });
+  expect(colours.wrong).not.toBe(colours.accent);
+  expect(await page.locator(".feedback").textContent()).toContain("Already found");
+
+  // And it does not linger either.
+  await page.waitForFunction(
+    () => document.querySelectorAll(".tile--wrong").length === 0,
+    undefined,
+    {
+      timeout: 3000,
+    },
+  );
+  await page.close();
+}, 60_000);
