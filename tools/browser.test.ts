@@ -10,7 +10,7 @@ import { PLAY_MS, ROUND_MS } from "../src/game/schedule";
 
 const PORT = 4183;
 const URL = `http://localhost:${PORT}/`;
-const SHOTS = process.env.SHOT_DIR ?? "/tmp";
+const SHOTS = process.env.SHOT_DIR || "/tmp";
 
 // Land mid-round with 6 seconds of play left, so the break arrives during the test.
 const ROUND = 1_000_000;

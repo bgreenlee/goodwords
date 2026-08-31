@@ -13,7 +13,7 @@ import { Trie } from "../src/game/trie";
 const STATE = ".wrangler/state-multiplayer";
 const PORT = 8791;
 const URL = `http://127.0.0.1:${PORT}/`;
-const SHOTS = process.env.SHOT_DIR ?? "/tmp";
+const SHOTS = process.env.SHOT_DIR || "/tmp";
 
 let server: ReturnType<typeof spawn>;
 let browser: Browser;

@@ -61,6 +61,6 @@ test("two browsers play each other on the deployed site", async () => {
     expect(names.sort()).toEqual(["ada", "grace"]);
     expect(await page.locator(".ladder__row--you").count()).toBe(1);
   }
-  await ada.screenshot({ path: `${process.env.SHOT_DIR ?? "/tmp"}/goodwords-live-mp.png` });
+  await ada.screenshot({ path: `${process.env.SHOT_DIR || "/tmp"}/goodwords-live-mp.png` });
   await browser.close();
 }, 300_000);
