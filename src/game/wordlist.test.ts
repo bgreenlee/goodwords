@@ -38,8 +38,8 @@ describe("hand-kept word lists", () => {
 
   test("an excluded word cannot be played in any form", () => {
     for (const word of excluded) {
-      for (const form of [word, `${word}s`, `${word}es`]) {
-        expect(dictionary.has(form)).toBe(false);
+      for (const form of [word, ...inflectionsOf(word)]) {
+        expect(dictionary.has(form), `${form} is a form of excluded ${word}`).toBe(false);
       }
     }
   });
@@ -172,7 +172,11 @@ describe("the definitions the game shows", () => {
       bunghole: /barrel|cask/i,
       pecker: /bird/i,
     };
-    for (const [word, pattern] of Object.entries(expected)) {
+    // Any of these may since have been excluded by hand, which is a decision this
+    // test has no business overruling. It checks the ones still in the dictionary.
+    const live = Object.entries(expected).filter(([word]) => dictionary.has(word));
+    expect(live.length, "no example words left to check").toBeGreaterThan(3);
+    for (const [word, pattern] of live) {
       const entry = vocab.defs[word];
       expect(entry, `${word} should have a definition`).toBeDefined();
       expect(definitionOf(entry), `${word} is taught the wrong sense`).toMatch(pattern);
@@ -187,6 +191,18 @@ describe("the definitions the game shows", () => {
     }
   });
 });
+
+/** Mirrors inflections() in tools/wordlist.py: the regular English forms of a word. */
+function inflectionsOf(word: string): string[] {
+  const out = [`${word}s`];
+  if (/(?:s|x|z|ch|sh|o)$/.test(word)) out.push(`${word}es`);
+  if (word.endsWith("y") && word.length > 2 && !"aeiou".includes(word[word.length - 2])) {
+    out.push(`${word.slice(0, -1)}ies`);
+  }
+  if (word.endsWith("fe")) out.push(`${word.slice(0, -2)}ves`);
+  else if (word.endsWith("f")) out.push(`${word.slice(0, -1)}ves`);
+  return out;
+}
 
 function hasPython(): boolean {
   if (process.env.CI) return true;

@@ -30,6 +30,25 @@ def read_list(name, lists_dir=LISTS):
     return out
 
 
+def inflections(word):
+    """The regular English forms of `word`.
+
+    Only forms the spelling rules actually produce, so excluding "spic" does not
+    reach "spices" and excluding "spik" does not reach "spikes". Anything generated
+    is kept only if the dictionary already had it, so a non-word costs nothing.
+    """
+    out = {word + "s"}
+    if word.endswith(("s", "x", "z", "ch", "sh", "o")):
+        out.add(word + "es")
+    if word.endswith("y") and len(word) > 2 and word[-2] not in "aeiou":
+        out.add(word[:-1] + "ies")
+    if word.endswith("fe"):
+        out.add(word[:-2] + "ves")
+    elif word.endswith("f"):
+        out.add(word[:-1] + "ves")
+    return out
+
+
 def apply(out_dir, lists_dir=LISTS):
     words = open(os.path.join(out_dir, "words.txt"), encoding="utf-8").read().split("\n")
     freq = bytearray(open(os.path.join(out_dir, "freq.bin"), "rb").read())
@@ -46,6 +65,11 @@ def apply(out_dir, lists_dir=LISTS):
     for word, lemma in lemma_of.items():
         if lemma in roots or word in listed:
             excluded.add(word)
+    # lemmaOf only covers words that have a definition, and a word whose every
+    # sense is a slur has none — so the plurals of the very worst words were the
+    # ones it could not reach. Generate the regular forms as well.
+    for word in list(excluded):
+        excluded |= inflections(word)
 
     pairs = [(w, freq[i]) for i, w in enumerate(words) if w and w not in excluded]
 

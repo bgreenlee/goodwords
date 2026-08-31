@@ -5,8 +5,8 @@
 # An excluded word cannot be played, cannot be taught in the missed-words
 # column, and cannot name a round.
 #
-# Say why. The reason is the useful part of the record, and the next person to
-# read this file will want it.
+# A comment is worth adding where the reason is not obvious from the word, but
+# most words do not need one and requiring it only makes the list harder to add to.
 
 # a slur for people with dwarfism.
 midget
@@ -76,3 +76,6 @@ spik
 wetback
 gypsy
 eskimo
+
+# Variant spelling of gypsy, which the inflection rules do not reach.
+gipsy

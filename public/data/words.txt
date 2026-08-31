@@ -8748,7 +8748,6 @@ asseverating
 asseveration
 asseverations
 asseverative
-assholes
 assiduities
 assiduity
 assiduous
@@ -16054,7 +16053,6 @@ boccias
 boccie
 boccies
 boccis
-boches
 bock
 bocks
 bodacious
@@ -19284,7 +19282,6 @@ bushwahs
 bushwas
 bushwhack
 bushwhacked
-bushwhackers
 bushwhacking
 bushwhacks
 bushy
@@ -31204,7 +31201,6 @@ cooler
 coolers
 coolest
 coolheaded
-coolies
 cooling
 coolish
 coolly
@@ -35854,8 +35850,6 @@ daglock
 daglocks
 dagoba
 dagobas
-dagoes
-dagos
 dags
 daguerreotype
 daguerreotyped
@@ -61694,8 +61688,6 @@ gippers
 gipping
 gips
 gipsied
-gipsies
-gipsy
 gipsying
 giraffe
 giraffes
@@ -63711,14 +63703,12 @@ grazing
 grazings
 grazioso
 grease
-greaseballs
 greased
 greaseless
 greasepaint
 greasepaints
 greaseproof
 greaseproofs
-greasers
 greases
 greasewood
 greasewoods
@@ -68256,7 +68246,6 @@ hilding
 hildings
 hili
 hill
-hillbillies
 hillcrest
 hillcrests
 hilled
@@ -78836,7 +78825,6 @@ jerrican
 jerricans
 jerrid
 jerrids
-jerries
 jerrycan
 jerrycans
 jersey
@@ -80466,7 +80454,6 @@ kieserites
 kiester
 kiesters
 kifs
-kikes
 kilderkin
 kilderkins
 kilim
@@ -81209,7 +81196,6 @@ kraken
 krakens
 krater
 kraters
-krauts
 kreep
 kreeps
 kremlin
@@ -88004,7 +87990,6 @@ marquisette
 marquisettes
 marram
 marrams
-marranos
 marred
 marrer
 marrers
@@ -90362,12 +90347,10 @@ miche
 miched
 miches
 miching
-mickeys
 mickle
 mickler
 mickles
 micklest
-micks
 micra
 micrified
 micrifies
@@ -96049,7 +96032,6 @@ nametags
 naming
 nana
 nanas
-nances
 nancies
 nancy
 nandin
@@ -96448,7 +96430,6 @@ nazified
 nazifies
 nazify
 nazifying
-nazis
 neap
 neaps
 near
@@ -111505,7 +111486,6 @@ picador
 picadores
 picadors
 pical
-picaninnies
 picara
 picaras
 picaresque
@@ -111536,7 +111516,6 @@ pickabacking
 pickabacks
 pickadil
 pickadils
-pickaninnies
 pickaroon
 pickaroons
 pickax
@@ -114359,7 +114338,6 @@ pommelled
 pommelling
 pommels
 pommie
-pommies
 pomological
 pomologies
 pomologist
@@ -114503,7 +114481,6 @@ poorness
 poornesses
 poortith
 poortiths
-pooves
 popcorn
 popcorns
 pope
@@ -114511,7 +114488,6 @@ popedom
 popedoms
 popeless
 popelike
-poperies
 popes
 popeyed
 popgun
@@ -124420,7 +124396,6 @@ redshirt
 redshirted
 redshirting
 redshirts
-redskins
 redstart
 redstarts
 redtail
@@ -136761,7 +136736,6 @@ sheeneys
 sheenful
 sheenie
 sheenier
-sheenies
 sheeniest
 sheening
 sheens
@@ -137012,8 +136986,6 @@ shikarring
 shikars
 shikker
 shikkers
-shiksas
-shikses
 shilingi
 shill
 shillala
@@ -142651,7 +142623,6 @@ spikily
 spikiness
 spikinesses
 spiking
-spiks
 spiky
 spile
 spiled
@@ -143654,7 +143625,6 @@ squawking
 squawks
 squawroot
 squawroots
-squaws
 squeak
 squeaked
 squeaker
@@ -158435,7 +158405,6 @@ turbulency
 turbulent
 turbulently
 turdine
-turds
 tureen
 tureens
 turf
@@ -168293,7 +168262,6 @@ westmost
 wests
 westward
 westwards
-wetbacks
 wether
 wethers
 wetland

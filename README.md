@@ -294,12 +294,22 @@ word. Two tracked files override the dictionary:
 
     npm run wordlist              apply them to public/data, then commit
 
-Both take one word per line and allow `#` comments, so the reason for an
-exclusion lives beside the entry. Excluding a word excludes every form of it —
-listing `midget` also drops `midgets` — and removes it from all four artifacts,
-so it cannot be played, cannot be taught, and cannot name a round. An added word
-is playable; give it `word | part of speech | what it means` and it can also be
-taught and name a round.
+Both take one word per line and allow `#` comments, which are worth adding where
+the reason is not obvious from the word and are not worth the overhead otherwise.
+
+Excluding a word excludes every form of it, and removes it from all four
+artifacts, so it cannot be played, cannot be taught, and cannot name a round.
+Forms are found two ways: through WordNet's inflection map, and by generating the
+regular English forms. Both are needed. The map only covers words that have a
+definition, and a word whose every sense is a slur has none — so the plurals of
+the very worst words were exactly the ones it could not reach. The generated
+forms follow the spelling rules rather than just appending letters, so excluding
+`spic` does not reach `spices`, and anything generated is dropped only if the
+dictionary already had it.
+
+A variant spelling is not a form and will not be found: `gipsy` had to be listed
+beside `gypsy`. An added word is playable; give it `word | part of speech | what
+it means` and it can also be taught and name a round.
 
 `npm run wordlist` works on the committed artifacts, so a one-word exclusion
 needs no corpora, no downloads and no Python packages — just the repo. `npm run
